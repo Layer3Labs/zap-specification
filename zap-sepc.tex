@@ -1,0 +1,152 @@
+\documentclass[a4paper, titlepage, 12pt]{article}
+\usepackage[left=3cm, right=3cm, top=4cm, bottom=4cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{color}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+\usepackage{graphicx}
+\usepackage[square,sort,comma,numbers]{natbib}
+\usepackage{float}
+
+\usepackage{newunicodechar}
+
+\usepackage{booktabs}
+\usepackage{adjustbox}
+\usepackage{graphicx}
+
+\usepackage{rotating}
+\usepackage{colortbl}
+\usepackage{multirow}
+\usepackage[table]{xcolor}
+\usepackage{makecell}
+\newcommand{\myrotcell}[1]{\rotcell{\makebox[0pt][l]{#1}}}
+
+
+\usepackage{widetext}
+
+\usepackage[normalem]{ulem} % normalem option to avoid changing \emph behavior
+
+
+% ----------------------------------------------
+% \usepackage{fontspec}
+% \newcommand{\consolefont}[1]{\fontspec{Courier}#1}
+
+\usepackage{courier}
+
+
+% ----------------------------------------------
+% Watermark:
+
+\usepackage{draftwatermark}
+\usepackage{helvet} % or \usepackage{uarial}
+
+% Define Arial as the watermark font
+\renewcommand{\familydefault}{\sfdefault}
+
+\makeatletter
+\newcommand{\customtiny}{\@setfontsize\customtiny{3}{5}} % 4pt font with 5pt baseline skip
+\makeatother
+
+\SetWatermarkText{DRAFT \\{\customtiny Date: April 2024}}
+\SetWatermarkScale{8}    % Scaling factor (1 means actual size)
+\SetWatermarkColor[gray]{0.81} % Color (0 is black, 1 is white)
+\SetWatermarkFontSize{20pt}   % Font size
+\SetWatermarkAngle{45}        % Rotation angle (45 degrees in this example)
+
+% ----------------------------------------------
+
+\setlength{\parindent}{0pt}
+
+\pagenumbering{arabic}
+
+% SET YOUR DATA HERE
+% Prelim title.
+\newcommand{\projectTitle}{Infrastructure for Stateless Account Abstraction on Fuel}
+
+% Your full name.
+% \newcommand{\name}{Antony Burrows}
+\newcommand{\name}{}
+
+% The time frame.
+\newcommand{\timeFrame}{April 2024}
+
+% % The primary supervisor. You probably do not need to change this.
+% \newcommand{\supervisor}{Prof. Dr. Tilmann Rabl}
+
+% % The name(s) of your advisor(s). This is probably the PhD student or PostDoc that you are working with.
+% \newcommand{\advisor}{Name of Advisor\\Second Advisor (if there is one)}
+
+% Select if this is a Bachelor or Master Thesis.
+\newcommand{\docType}{Specification}
+
+
+\newcommand\todo[1]{\colorbox{yellow}{#1}}
+\setlength{\bibsep}{0.0pt}
+
+\begin{document}
+
+
+
+
+
+
+\begin{titlepage}
+\begin{center}
+
+% \LARGE{\textbf{Hasso Plattner Institute}}\\
+% \normalsize{Chair for Data Engineering Systems}\\[0.3cm]
+
+
+
+\LARGE{ {\docType}}\\[0.7cm]
+
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=.3\linewidth]{images/hpi_logo.jpg}
+% \end{figure}
+% \vspace{1cm}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=.4\linewidth]{images/ZapBolt01.png}
+\end{figure}
+\vspace{1cm}
+
+
+\Huge{\textbf{\projectTitle}}
+
+\vspace{1cm} 
+
+\Large{\textbf{\name}} \\[3pt]  
+\vspace{0.5cm}
+\large{Date: \timeFrame} \\
+
+\vspace{1cm}
+
+% \large{\textbf{Supervisor}}\\
+% \supervisor\\
+% \vspace{0.5cm}
+% \textbf{Advisor}\\
+% \advisor\\
+\end{center}
+\end{titlepage}
+
+\input{sections/1_introduction}
+\input{sections/2_predicate_wallet}
+\newpage
+\input{sections/3_rpc_methods}
+% \input{sections/3_approach}
+% \input{sections/4_transparency}
+% \input{sections/5_project-plan}
+% \input{sections/6_budget}
+% \input{sections/7_contact-details}
+
+\clearpage
+\bibliographystyle{plain}
+{\small 
+\bibliography{references}
+}
+
+\end{document}

@@ -1,0 +1,82 @@
+\section{JSON-RPC methods}
+\label{sec:rpc_methods}
+
+Zaps JSON-RPC supports the following methods for \texttt{eth\_},\texttt{net\_} and \texttt{zap\_} namespace calls. \\
+
+% --------------------------------------------------------
+\subsection{\texttt{eth}}
+
+\texttt{\_chainId}\\
+Returns the current network/chain ID, used to sign replay-protected transaction introduced in EIP-155.\\
+
+\texttt{\_blockNumber}\\
+Returns the latest block number of the blockchain.\\
+
+\texttt{\_getBlockByNumber}\\
+Returns information of the block matching the given block number.\\
+
+\texttt{\_getBlockByHash}\\
+Returns information of the block matching the given block hash.\\
+
+\texttt{\_getBalance}\\
+Returns the balance of given account address in wei.\\
+
+\texttt{\_feeHistory}\\
+Returns the collection of historical gas information. \\
+
+\texttt{\_gasPrice}\\
+Returns the current gas price on the network in wei.\\
+
+\texttt{\_getCode}\\
+Returns the compiled bytecode of a smart contract. \\
+
+\texttt{\_estimateGas}\\
+Returns an estimation of gas for a given transaction. \\
+
+\texttt{\_call}\\
+Executes a new message call immediately without creating a transaction on the block chain.\\
+
+\texttt{\_getTransactionCount}\\
+Returns the number of transactions sent from an address.\\
+
+\texttt{\_sendRawTransaction}\\
+Creates new message call transaction for signed transactions.\\
+
+\texttt{\_getTransactionReceipt}\\
+Returns the receipt of a transaction by transaction hash. \\
+
+\texttt{\_maxPriorityFeePerGas}\\
+Get the priority fee needed to be included in a block.\\
+
+\texttt{\_getTransactionByHash}\\
+Returns the information about a transaction from a transaction hash. (note currently will not work for Legacy tx)\\
+
+
+% --------------------------------------------------------
+\subsection{\texttt{zap}}
+
+\texttt{\_getPredicateAddress}\\
+returns the address of the predicate wallet on Fuel, for the EVM address.\\
+
+\texttt{\_checkInitialized}\\
+returns true or false if the predicate wallet for the EVM address has been initialized.\\
+
+\texttt{\_get\_assetidKey1}\\
+Returns the nonce token asset id, for the predicate wallet for key = 1.\\
+
+\texttt{\_get\_initializationTxid}\\
+Returns the transaction id of the initialization transaction for the predicate wallet.\\
+
+\texttt{\_submitInitTx}\\
+Submits the initialization transaction to the Fuel node.\\
+
+\texttt{\_getTransactionCount}\\
+Returns the number of transactions made by the predicate wallet.\\
+
+% --------------------------------------------------------
+\subsection{\texttt{net}}
+
+\texttt{\_version}\\
+Returns the current network id.
+
+

@@ -1,0 +1,16 @@
+\section{Introduction}
+\label{sec:introduction}
+
+% The following specification is broken down into two parts. (1) The Predicate wallet, written in Sway, (2) The backend RPC-API and "executor". \\
+The following specification is broken down into two parts. The Predicate wallet written in Sway and the backend JSON-RPC api commands. \\
+
+\textbf{Predicate Wallet:}\
+
+The predicate wallet is a stateless account abstraction wallet written in Sway. The "wallet" contains the logic to validate a
+specific transaction types signed by the owner of the wallet. \\
+
+\textbf{Backend:}\
+
+The backend consists of an RPC endpoint that accepts \texttt{eth\_},\texttt{net\_} and \texttt{zap\_} namespace calls and a project
+(that is required to build the RPC) called the "zap-executor", which builds and sends transactions to Fuels network, implements the interface
+from an API call to the graph-ql port of fuel-core and any translation to evm spec data structures. \\
