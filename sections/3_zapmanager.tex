@@ -1,0 +1,189 @@
+\newpage
+\section{Zap Manager Contract - {\ttfamily "ZapManager"}}
+\label{sec:zapmanager_contract}
+
+
+\subsection{Overview}
+The ZapManager contract facilitates the initialization and upgrade lifecycle of a ZapWallet through asset management and state control. It serves as the central authority for:
+
+\begin{itemize}
+    \item Wallet initialization through controlled asset minting
+    \item Upgrade path management between wallet versions
+    \item State tracking through unique nonce assets
+    \item Module asset distribution and verification
+\end{itemize}
+
+\subsection{State Variables}
+The contract maintains the following state:
+
+\begin{itemize}
+    \item $owner \in Address$: Contract administrator with privileged access
+    \item $v1\_map: key1 \rightarrow AssetId$: Nonce asset tracking where:
+        \[ key1 = sha256(evm\_addr || master\_addr) \]
+    \item $can\_initialize \in \{true, false\}$: Initialization phase flag
+    \item $can\_upgrade \in \{true, false\}$: Upgrade phase flag
+    \item $v1\_version, v2\_version \in String[5]$: Version identifiers
+\end{itemize}
+
+\subsection{Contract Phases}
+Contract state evolves through distinct phases defined by the tuple $(can\_initialize, can\_upgrade)$ where:
+\[ (can\_initialize, can\_upgrade) \in \{(false,false), (true,false), (false,true)\} \]
+
+These phases represent:
+\begin{itemize}
+    \item $(false,false)$: Initial or paused state
+    \item $(true,false)$: Active initialization phase
+    \item $(false,true)$: Active upgrade phase
+\end{itemize}
+
+Phase transitions are controlled by the contract owner and must maintain the invariant:
+\[ \neg(can\_initialize \land can\_upgrade) \]
+
+\subsection{Core Functions}
+
+\subsubsection{Wallet Initialization}
+\begin{small}
+\begin{verbatim}
+initialize_wallet(master_addr, owner_evm_addr, initdata) -> EvmAddress
+\end{verbatim}
+\end{small}
+
+\textbf{Preconditions:}
+\begin{itemize}
+    \item $\neg is\_paused()$
+    \item $can\_initialize = true$ (for InitModules)
+    \item $key1 \notin domain(v1\_map)$ (for InitModules)
+\end{itemize}
+
+\textbf{Effects:}
+\begin{itemize}
+    \item InitModules: Mints $(n+1)$ assets where $n = |modules|$ where:
+        \[ \forall i \in [0,n]. balance(asset_i, recipient_i) = 1 \]
+    \item NewModule: Mints single module asset where:
+        \[ key \neq KEY\_NONCE \land balance(asset, recipient) = 1 \]
+\end{itemize}
+
+\textbf{Post-conditions:}
+\begin{itemize}
+    \item For InitModules:
+        \[ key1 \in domain(v1\_map) \land balance(v1\_map[key1]) = 1 \]
+    \item For NewModule:
+        \[ balance(new\_module\_asset) = 1 \]
+\end{itemize}
+
+
+
+
+
+
+\subsubsection{Wallet Upgrade}
+\begin{lstlisting}
+upgrade(owner_evm_addr, sponsored)
+\end{lstlisting}
+
+\textbf{Preconditions:}
+\begin{itemize}
+    \item $\neg is\_paused()$
+    \item $can\_upgrade = true$
+    \item $\exists$ nonce asset in inputs where:
+        \[ key1 = sha256(owner\_evm\_addr || nonce\_owner) \]
+        \[ v1\_map[key1] = nonce\_asset\_id \]
+\end{itemize}
+
+\textbf{Effects:}
+\begin{itemize}
+    \item Verifies nonce asset ownership:
+        \[ balance(nonce\_asset\_id, nonce\_owner) > 0 \]
+    \item Records upgrade status
+    \item Processes payment based on $sponsored$ flag
+\end{itemize}
+
+\subsection{Asset Management}
+Asset balances and ownership are tracked through the balance function:
+\[ balance: AssetId \times Address \rightarrow \mathbb{N} \]
+
+Key generation for nonce asset tracking:
+\[ key1 = sha256(evm\_addr || master) \]
+
+Asset invariants must maintain:
+\begin{itemize}
+    \item Nonce uniqueness:
+        \[ \forall k_1,k_2 \in domain(v1\_map). k_1 \neq k_2 \implies v1\_map[k_1] \neq v1\_map[k_2] \]
+    \item Balance consistency:
+        \[ \forall k \in domain(v1\_map). balance(v1\_map[k]) > 0 \]
+\end{itemize}
+
+
+% --------------------------------------------------------------------------------------------------
+\subsection{Security Invariants}
+% \begin{enumerate}
+%     \item $\forall k. v1\_map[k] \neq \emptyset \implies balance(v1\_map[k]) > 0$
+%     \item $\neg(can\_initialize \land can\_upgrade)$
+%     \item $owner \neq \emptyset$
+% \end{enumerate}
+
+The security properties of the ZapManager contract are defined by the following formal invariants, which must hold true at all times during contract execution:
+
+\subsubsection{Asset Mapping Integrity}
+For any key in the nonce asset mapping:
+\[ \forall k. v1\_map[k] \neq \emptyset \implies balance(v1\_map[k]) > 0 \]
+
+This invariant ensures that any nonce asset recorded in the mapping must maintain a positive balance. This is critical for:
+\begin{itemize}
+   \item Preventing double initialization of wallets
+   \item Maintaining unique wallet identities
+   \item Ensuring valid upgrade paths
+\end{itemize}
+
+\subsubsection{Phase Exclusivity}
+The contract phases must remain mutually exclusive:
+\[ \neg(can\_initialize \land can\_upgrade) \]
+
+This enforces strict separation between initialization and upgrade phases, which:
+\begin{itemize}
+   \item Prevents state confusion
+   \item Ensures clean wallet lifecycle progression
+   \item Maintains clear operational boundaries
+\end{itemize}
+
+\subsubsection{Administrative Control}
+The contract must maintain valid ownership:
+\[ owner \neq \emptyset \]
+
+This invariant guarantees:
+\begin{itemize}
+   \item Continuous administrative control
+   \item Emergency intervention capability
+   \item Proper governance of contract parameters
+\end{itemize}
+
+\subsubsection{Asset State Consistency}
+For any wallet $w$ with nonce asset $n$ and module assets $M$:
+\[ balance(n) \in \{0, 1\} \]
+\[ \forall m \in M. balance(m) \leq 1 \]
+
+These balance constraints ensure:
+\begin{itemize}
+   \item Unique wallet identification through nonce assets
+   \item Proper module asset distribution
+   \item Prevention of asset duplication
+\end{itemize}
+
+\subsubsection{Verification}
+These invariants are maintained through:
+\begin{enumerate}
+   \item Runtime checks in all state-modifying functions
+   \item Access control restrictions on administrative operations
+   \item Balance verification during initialization and upgrades
+   \item Event emission for off-chain monitoring
+\end{enumerate}
+
+\subsubsection{Events}
+Event emission follows state transitions:
+\begin{itemize}
+    \item InitializeWalletEvent(master\_addr, owner\_evm\_addr, is\_base\_modules)
+    \item UpgradeEvent(owner\_evm\_addr, master\_address, is\_sponsored, verified\_nonce)
+    \item ContractStateEvent(allow\_initialize, allow\_upgrade, sender)
+    \item WalletVersionsEvent(v1\_version, v2\_version, sender)
+\end{itemize}
+

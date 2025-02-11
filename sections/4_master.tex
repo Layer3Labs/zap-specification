@@ -1,0 +1,267 @@
+\newpage
+\section{Zap Master - {\ttfamily "master"}}
+\label{sec:zapmaster_predicate}
+
+
+\subsection{Overview}
+The ZapWallet Master is a predicate that provides secure asset custody through modular validation. The master serves as the authority to validate
+ZapWallet transactions, initialization (if paying own gas) and wallet upgrades.
+
+\subsection{Definitions}
+
+\textbf{Basic Types}\\
+Let:
+\begin{itemize}
+    \item $\mathbb{B}_{256}$ be the set of 256-bit values
+    \item $\mathbb{A}$ be the set of valid Fuel addresses
+    \item $\mathbb{U}_{64}$ be the set of 64-bit unsigned integers
+\end{itemize}
+
+\textbf{Module}\\
+A module $M$ is defined as a tuple:
+\[ M = (a, p) \text{ where } a \in \mathbb{B}_{256}, p \in \mathbb{A} \]
+where:
+\begin{itemize}
+    \item $a$ is the unique AssetId of the module
+    \item $p$ is the predicate address of the module
+\end{itemize}
+
+\textbf{Wallet Configuration}\\
+A wallet configuration $W$ consists of:
+\[ W = (M_0, M_1, ..., M_8, o) \]
+where:
+\begin{itemize}
+    \item $M_0$ is the upgrade module
+    \item $M_1$ through $M_8$ are the operational modules
+    \item $o \in \mathbb{B}_{256}$ is the owner's address
+\end{itemize}
+
+
+
+
+% ----------------------------------------------------------------------------------------------------
+\subsection{Transaction Types and Validation}
+
+The ZapWallet master predicate's \texttt{main()} function accepts an optional \texttt{WalletOp} parameter that serves two distinct purposes depending on the transaction type:
+
+\begin{enumerate}
+    \item \textbf{Initialization:} When present (\texttt{Some(WalletOp)}), validates wallet initialization
+    \item \textbf{Module Operations:} When absent (\texttt{None}), validates module-based transactions
+\end{enumerate}
+
+
+
+
+\subsubsection{Initialization}
+During initialization, \texttt{WalletOp} contains:
+
+\begin{small}
+\begin{verbatim}
+pub struct WalletOp {
+    pub evm_addr: b256,      // padded ETH address of wallet owner
+    pub compsig: Bytes,      // Compact signature
+    pub command: String,     // Initialization command
+}
+\end{verbatim}
+\end{small}
+
+An initialization transaction $T_i$ must satisfy:
+\[ V_i(T_i, s, o) = true \]
+where:
+\begin{itemize}
+    \item $s$ is a valid EIP712 signature
+    \item $o$ is the owner's address
+    \item $V_i$ is the initialization verification function
+\end{itemize}
+
+$V_i$ verifies:
+\begin{enumerate}
+    \item Exactly two inputs: one coin and one contract
+    \item Valid change output
+    \item Valid signature recovering to owner
+    \item No module assets present
+\end{enumerate}
+
+
+
+
+
+\subsubsection{Module Operations}
+For all other operations, transaction validation relies on:
+\begin{itemize}
+    \item Presence of exactly one module asset in inputs
+    \item Proper return of module asset in outputs
+    \item Module-specific validation logic
+    \item Nonce token accounting (when required)
+\end{itemize}
+
+A module operation transaction $T_m$ must satisfy:
+\[ V_m(T_m, M_i) = true \]
+for exactly one module $M_i$ where $i \in \{1,...,8\}$
+
+$V_m$ verifies:
+\begin{enumerate}
+    \item Exactly one module asset present in inputs
+    \item Module asset returned correctly in outputs
+    \item Module-specific validation passes
+\end{enumerate}
+
+
+
+\textbf{Upgrade Operation}\\
+An upgrade transaction $T_u$ must satisfy:
+\[ V_u(T_u, M_0) = true \]
+
+$V_u$ verifies:
+\begin{enumerate}
+    \item Only module $M_0$ present
+    \item Upgrade module asset handled correctly (sent to ZapManager)
+    \item No other module assets present
+\end{enumerate}
+
+
+
+This dual-purpose design allows the \texttt{WalletOp} to handle initialization while remaining unintrusive for regular module operations.\\
+
+
+
+
+
+\subsection{State Transitions}
+
+\textbf{Module State Vector}\\
+For any transaction T, let $\vec{m}$ be a boolean vector where:
+\[ \vec{m} = [m_0, m_1, ..., m_8] \text{ where } m_i \in \{0,1\} \]
+indicating the presence (1) or absence (0) of each module in the transaction inputs.\\
+
+\textbf{Valid States}\\
+A transaction is valid if and only if $\vec{m}$ satisfies exactly one of:
+\begin{enumerate}
+    \item Initialization: $\vec{m} = [0,0,...,0]$
+    \item Single Module: $\vec{m}$ contains exactly one 1
+    \item Upgrade: $\vec{m} = [1,0,...,0]$
+\end{enumerate}
+
+
+
+\subsection{Security Properties}
+
+\textbf{Module Isolation}\\
+For any valid transaction T:
+\[ |\{i : m_i = 1\}| \leq 1 \]
+Meaning no more than one module can be active in a single transaction.\\
+
+\textbf{Asset Conservation}\\
+For any module $M_i$ present in transaction inputs:
+\[ \exists \text{ output } o : o.asset = M_i.a \land o.amount = 1 \land o.to = M_i.p \]
+Meaning any module asset must be properly returned to its predicate.\\
+
+\textbf{State Consistency}\\
+The master predicate enforces:
+\begin{itemize}
+    \item No double-module usage
+    \item Proper initialization sequence
+    \item Upgrade isolation
+    \item Module asset conservation
+\end{itemize}
+
+
+\subsubsection{Implementation Notes}
+
+\textbf{Module Detection}\\
+The system identifies modules by matching both:
+\begin{itemize}
+    \item AssetId ($\mathbb{B}_{256}$)
+    \item Predicate Address ($\mathbb{A}$)
+\end{itemize}
+
+\textbf{Validation Flow}\\
+1. Scan inputs for module assets
+2. Build module state vector
+3. Determine transaction type
+4. Apply appropriate validation rules
+5. Verify output conditions
+
+
+
+
+
+% ---------------------------------------------------------------------------------------------------------------
+
+
+\subsection{Initialization flow}
+
+
+
+The following outlines the procedure to construct the InitData struct and build the initialization transaction that calls the ZapManager
+contract to mint nonce tokens.\\
+
+1. To obtain the nonce token id a user can calculate it on "by-hand" by the above method, or, obtain by calling the above zap JSON-RPC method \texttt{zap\_get\_assetidKey1()} with the EVM address
+of the owner.\\
+
+2. The nonce token AssetId (32byte value) is Signed by the use via connected wallet (if using the Zap frontend App) or by an appropriate Ethereum library (like ethers-rs)
+and sent back as hex encoded bytes to the rpc as a compact signature.\\
+
+3. The zap JSON-RPC method \texttt{zap\_get\_initializationTxid()} is called with the signers EVM address and compact signature from (2) as a parameters.\\
+
+4. The return value from (3) is the initialization transaction id. The user is then required to sign the 32-byte transaction id and return it the compact signature
+to the zap rpc. The two options for this are 1; by the Zap frotnend using an EVM browser wallet extension that is connected, or, 2; with an appropriate
+Ethereum library (like ethers-rs).\\
+
+5. The zap JSON-RPC method \texttt{zap\_SubmitInitializationTx()} is called with two parameters, the compact signature from (4) and the EVM
+signers address. This submits the initialization transaction to the Fuel node.\\
+
+6. Once (5) is complete. transaction success can be checked by calling the eth JSON-RPC method \texttt{eth\_getTransactionReceipt()}.\\
+
+% ---------------------------------------------------------------------------------------------------------------
+
+\subsection{Initialization Flow}
+The initialization of a ZapWallet can be done using the owner Fuel \text{BASE\_ASSET} to pay for gas or from a third party that spends their own gas. If the owner is
+initializing their own ZapWallet (self-initialization) which spends a \text{BASE\_ASSET} UTXO from the master, this involves a signature within the \texttt{WalletOp} parameter.
+
+\subsubsection{Transaction Structure}
+A valid initialization transaction requires:
+\begin{itemize}
+    \item Exactly two inputs:
+        \begin{itemize}
+            \item One coin input containing FUEL \text{BASE\_ASSET} for gas
+            \item One contract input referencing the ZapManager contract
+        \end{itemize}
+    \item A single change output returning unused FUEL \text{BASE\_ASSET} to the transaction sender
+\end{itemize}
+
+\subsubsection{Signature Requirements}
+The self-initialization route initialization process requires a single distinct signature:
+\begin{enumerate}
+    \item \textbf{Transaction Signature:} A standard EIP-712 compliant signature over the initialization data structure:
+    \begin{small}
+    \begin{verbatim}
+    Initialization(
+        string command,    // "ZapWalletInitialize"
+        bytes32 evmaddr,   // Owner's ETH address
+        bytes32 utxoid     // UTXO ID of the coin input
+    )
+    \end{verbatim}
+    \end{small}
+\end{enumerate}
+
+\subsubsection{Contract Interaction}
+The initialization flow proceeds as follows:
+\begin{enumerate}
+    \item The transaction calls the ZapManager contract \text{initialize\_wallet()} function
+    \item The contract verifies the nonce has not already been minted
+    \item Upon verification, the contract:
+        \begin{itemize}
+            \item Mints the nonce tokens
+            \item Sends (\text{NONCE\_MAX} - 1) to the ZapWallet master predicate
+            \item Retains one token for transaction validation
+        \end{itemize}
+    \item The master predicate verifies:
+        \begin{itemize}
+            \item The initialization signature
+            \item Transaction structure
+            \item Change output validity
+        \end{itemize}
+\end{enumerate}
+
+Upon successful completion of the \text{initialize\_wallet()} function call, the ZapWallet is initialized and ready for module operations.

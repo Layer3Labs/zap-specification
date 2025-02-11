@@ -1,0 +1,24 @@
+\newpage
+\section{Module 00 - {\ttfamily "module00\_upgrade"}}
+\label{sec:module00_predicate}
+
+spec writeup WIP.
+
+
+% The purpose of \texttt{tx\_type} = 0 is to provide the validation logic for a transaction that initializes the predicate wallet. This consists of calling
+% the nonce manager contract which mints "nonce token" assets and sends the mint amount - 1 to the predicate wallet. Once the predicate wallet contains some
+% amount of this asset type, and the nonce manager contract contains at least 1 (one) of these assets, the predicate wallet is considered initialized.\\
+
+% The \texttt{tx\_type} = 0 transaction type is necessary to mint "nonce token" assets, without nonce tokens of a specific asset\_id held as a UTXO at the predicate
+% wallet address, \texttt{tx\_type} = 1 transactions will not work. Within an EVM Legacy and EIP-1559 transaction the "nonce" field is populated with
+% the current transaction count for the account (EOA) making the transaction call. This number (the nonce) is incremented every time a
+% transaction is successfully included in a block on an EVM compatible chain. However when constructing a predicate wallet (abstracted account) there is
+% no concept built in to a transaction type that includes the facility to obtain a transaction count for a particular address or predicate root. Therefore,
+% for a predicate wallet to validate EVM style transactions, that are presented to the predicate as a simple byte stream, there must be a some mechanism by
+% which a transaction count (for the predicate wallet) can persist past the scope of a single transaction. Nonce tokens serve the purpose of keeping track
+% of the transaction count of a predicate wallet. For each
+% successful transaction (EVM style) the nonce token count is reduced by one. That is, for every transaction, the total amount of nonce tokens (held as
+% a UTXO) are included as an input to the transaction and the total amount - 1 is included as a transaction output to the same transaction. Thus
+% giving the transaction builder an easy mechanism to obtain the current transaction count (nonce) of a predicate wallet.\\
+
+
