@@ -184,35 +184,6 @@ The system identifies modules by matching both:
 
 
 
-
-
-% ---------------------------------------------------------------------------------------------------------------
-
-
-\subsection{Initialization flow}
-
-
-
-The following outlines the procedure to construct the InitData struct and build the initialization transaction that calls the ZapManager
-contract to mint nonce tokens.\\
-
-1. To obtain the nonce token id a user can calculate it on "by-hand" by the above method, or, obtain by calling the above zap JSON-RPC method \texttt{zap\_get\_assetidKey1()} with the EVM address
-of the owner.\\
-
-2. The nonce token AssetId (32byte value) is Signed by the use via connected wallet (if using the Zap frontend App) or by an appropriate Ethereum library (like ethers-rs)
-and sent back as hex encoded bytes to the rpc as a compact signature.\\
-
-3. The zap JSON-RPC method \texttt{zap\_get\_initializationTxid()} is called with the signers EVM address and compact signature from (2) as a parameters.\\
-
-4. The return value from (3) is the initialization transaction id. The user is then required to sign the 32-byte transaction id and return it the compact signature
-to the zap rpc. The two options for this are 1; by the Zap frotnend using an EVM browser wallet extension that is connected, or, 2; with an appropriate
-Ethereum library (like ethers-rs).\\
-
-5. The zap JSON-RPC method \texttt{zap\_SubmitInitializationTx()} is called with two parameters, the compact signature from (4) and the EVM
-signers address. This submits the initialization transaction to the Fuel node.\\
-
-6. Once (5) is complete. transaction success can be checked by calling the eth JSON-RPC method \texttt{eth\_getTransactionReceipt()}.\\
-
 % ---------------------------------------------------------------------------------------------------------------
 
 \subsection{Initialization Flow}
