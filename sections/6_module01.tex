@@ -1,0 +1,103 @@
+\newpage
+\section{Module 01 - {\ttfamily "module01\_evm\_txtype1"}}
+\label{sec:module01_predicate}
+
+spec writeup WIP.
+
+% % ----------------------------------------------------------------------------------------------
+% \subsubsection{Validation logic type 1}
+
+
+% The purpose of \texttt{tx\_type} = 1 is to provide the validation logic for a signed typed RLP encoded EVM transaction for the base asset (ETH) on Fuel.\\
+
+% The current predicate wallet supports Legacy and EIP-1559 EVM transactions. Both EVM transaction types are decoded by the predicate wallet itself and transaction
+% criteria are matched for validity.\\
+
+
+% \textbf{EVM Legacy Tx:} \\
+
+% The following example best explains how the \texttt{tx bytes rlp} from a Legacy EVM transaction are encoded and decoded within \texttt{rlp\_utls5.sw}.\\
+
+% transaction bytes encoded:\\
+% \begin{small}
+%     \begin{verbatim}
+% eb08822cb482520894ff03ffd5d3e881c60a91eaa30c67d03aec025c4987ea7aa
+% 67b2d00008083097bc88080 + compact signature
+%     \end{verbatim}
+% \end{small}
+
+
+% \begin{small}
+% \begin{verbatim}
+% eb --> 0xc0 + length of payload (everything before the sig,
+%         not including the first byte ) 0xc0 + 0x2b = 0xeb
+% 08 --> nonce
+% 82 --> rlp encoded integer (0x80 and 0x02 bytes long)
+% 2cb4 --> gas_price
+% 82 --> rlp encoded integer (0x80 and 0x02 bytes long)
+% 5208 --> gas_limit or max_fee_per_gas
+% 94 --> rlp encoding
+% ff03ffd5d3e881c60a91eaa30c67d03aec025c49 --> to (evm address)
+% 87 --> (0x80 and 0x07 bytes long)
+% ea7aa67b2d0000 --> value (amount wei)
+% 8030
+% 97bc8 --> chain_id --> odd number of characters
+% 8080
+% \end{verbatim}
+% \end{small}
+
+
+% The logic for the above decoding can be seen in \texttt{rlp\_utls5.sw} from lines \href{https://github.com/Layer3Labs/zap-contracts/blob/9b2e0b8229077ef8becd6af0ad1a91f810a8db0a/contracts/wallet_predicate/src/rlp_utils5.sw#L153-L280}{\uline{153-280}}\\
+
+
+% \textbf{EVM EIP-1559 Tx:} \\
+
+% In a similar way the following example best explains how the \texttt{tx bytes rlp} from an EIP-1559 EVM transaction are encoded and decoded within \texttt{rlp\_utls5.sw}.\\
+
+% transaction bytes encoded:\\
+% \begin{small}
+%     \begin{verbatim}
+% 02f87283097bc8018085011bd4e67982520894ff03ffd5d3e881c60a91eaa30c6
+% 7d03aec025c49881148e7a6abbfc00080c001a0 + compact signature
+%     \end{verbatim}
+% \end{small}
+
+
+% \begin{small}
+% \begin{verbatim}
+% 02 --> tx type
+% f872 --> rlp encoding byte length
+% 83 --> rlp encoded 3 bytes
+% 097bc --> chain id
+% 80 --> rlp encoded 1 byte
+% 1 --> nonce
+% 8085 --> rlp encoded 5 bytes
+% 011bd4e679 --> gas price
+% 82 --> rlp encoded 2 bytes
+% 5208 --> gas limit
+% 94 --> rlp encoded 20 bytes
+% ff03ffd5d3e881c60a91eaa30c67d03aec025c49 --> to (evm address)
+% 88 --> rlp encoding 8 bytes
+% 1148e7a6abbfc000 --> value (wei)
+% 80 --> rlp encoded 1 byte
+% c0
+% 01a0 --> rlp encoded
+% \end{verbatim}
+% \end{small}
+
+% The logic for the above decoding can be seen in \texttt{rlp\_utls5.sw} from lines \href{https://github.com/Layer3Labs/zap-contracts/blob/9b2e0b8229077ef8becd6af0ad1a91f810a8db0a/contracts/wallet_predicate/src/rlp_utils5.sw#L72-L152}{\uline{72-152}}\\
+
+
+% \textbf{Tx validation:} \\
+
+% At the current \href{https://github.com/Layer3Labs/zap-contracts/commit/0e50f07c9350bb790d3a19d5302acd3ce96d310f}{\uline{commit}} a Legacy or EIP-1559 EVM transaction
+% is validated on the following conditions:\\
+
+% 1. The transaction is signed by the owner of the predicate wallet (secp256k1 private key).\\
+% 2. The transaction contains a nonce is equal to (0xFFFFFFFF - nonce) remaining nonce tokens held in the predicate wallet. \\
+% 3. There is at least one one output for the remaining nonce tokens equal to (0xFFFFFFFF - (nonce -1 )) and returned to the predicate wallet.\\
+
+% Note: currently no checks are done against the value sent within the transaction or the change value. However, when the transaction is submitted to the RPC there
+% are change outputs added, and a failure will occur if the EVM signed transaction amount is greater than the predicate wallet balance.\
+
+

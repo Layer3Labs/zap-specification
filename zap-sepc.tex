@@ -1,5 +1,10 @@
-\documentclass[a4paper, titlepage, 12pt]{article}
+\documentclass[a4paper, titlepage, 10pt]{article}
+
 \usepackage[left=3cm, right=3cm, top=4cm, bottom=4cm]{geometry}
+\usepackage{utopia}
+\renewcommand{\familydefault}{\rmdefault}
+\usepackage{courier}
+
 \usepackage[utf8]{inputenc}
 \usepackage{color}
 \usepackage{caption}
@@ -9,117 +14,97 @@
 \usepackage{graphicx}
 \usepackage[square,sort,comma,numbers]{natbib}
 \usepackage{float}
-
 \usepackage{newunicodechar}
-
 \usepackage{booktabs}
 \usepackage{adjustbox}
-\usepackage{graphicx}
-
 \usepackage{rotating}
 \usepackage{colortbl}
 \usepackage{multirow}
 \usepackage[table]{xcolor}
 \usepackage{makecell}
-\newcommand{\myrotcell}[1]{\rotcell{\makebox[0pt][l]{#1}}}
-
-
 \usepackage{widetext}
+\usepackage[normalem]{ulem}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{fvextra}
 
-\usepackage[normalem]{ulem} % normalem option to avoid changing \emph behavior
+% Define Rust language for listings
+\lstdefinelanguage{Rust}{
+  keywords={
+    self,pub,struct,enum,impl,fn,let,mut,move,match,if,else,for,in,while,loop,
+    return,break,continue,where,type,trait,use,unsafe,extern,const,static,
+    as,box,ref,Result,Option,Some,None,Ok,Err,Vec,String,
+  },
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  string=[b]",
+  morestring=[b]',
+}
 
+% Better handling of verbatim blocks
+\DefineVerbatimEnvironment{Verbatim}{Verbatim}{breaklines=true,fontsize=\small}
 
-% ----------------------------------------------
-% \usepackage{fontspec}
-% \newcommand{\consolefont}[1]{\fontspec{Courier}#1}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
-\usepackage{courier}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codegreen},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},
+}
 
-
-% ----------------------------------------------
-% Watermark:
-
-\usepackage{draftwatermark}
-\usepackage{helvet} % or \usepackage{uarial}
-
-% Define Arial as the watermark font
-\renewcommand{\familydefault}{\sfdefault}
-
-\makeatletter
-\newcommand{\customtiny}{\@setfontsize\customtiny{3}{5}} % 4pt font with 5pt baseline skip
-\makeatother
-
-\SetWatermarkText{DRAFT \\{\customtiny Date: April 2024}}
-\SetWatermarkScale{8}    % Scaling factor (1 means actual size)
-\SetWatermarkColor[gray]{0.81} % Color (0 is black, 1 is white)
-\SetWatermarkFontSize{20pt}   % Font size
-\SetWatermarkAngle{45}        % Rotation angle (45 degrees in this example)
-
-% ----------------------------------------------
+\lstset{style=mystyle}
 
 \setlength{\parindent}{0pt}
-
 \pagenumbering{arabic}
 
-% SET YOUR DATA HERE
-% Prelim title.
+% Document Information
 \newcommand{\projectTitle}{Infrastructure for Stateless Account Abstraction on Fuel}
-
-% Your full name.
-% \newcommand{\name}{Antony Burrows}
 \newcommand{\name}{}
-
-% The time frame.
-\newcommand{\timeFrame}{April 2024}
-
-% % The primary supervisor. You probably do not need to change this.
-% \newcommand{\supervisor}{Prof. Dr. Tilmann Rabl}
-
-% % The name(s) of your advisor(s). This is probably the PhD student or PostDoc that you are working with.
-% \newcommand{\advisor}{Name of Advisor\\Second Advisor (if there is one)}
-
-% Select if this is a Bachelor or Master Thesis.
+\newcommand{\timeFrame}{February 2025}
 \newcommand{\docType}{Specification}
 
-
-\newcommand\todo[1]{\colorbox{yellow}{#1}}
-\setlength{\bibsep}{0.0pt}
-
 \begin{document}
-
-
-
-
-
 
 \begin{titlepage}
 \begin{center}
 
-% \LARGE{\textbf{Hasso Plattner Institute}}\\
-% \normalsize{Chair for Data Engineering Systems}\\[0.3cm]
 
-
-
-\LARGE{ {\docType}}\\[0.7cm]
-
-% \begin{figure}[h!]
-%     \centering
-%     \includegraphics[width=.3\linewidth]{images/hpi_logo.jpg}
-% \end{figure}
-% \vspace{1cm}
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=.4\linewidth]{images/ZapBolt01.png}
+    \includegraphics[width=.7\linewidth]{images/Zap_Logo_black+purple+transp_bkg.png}
 \end{figure}
 \vspace{1cm}
 
+\LARGE{\textbf{\docType}}\\[0.7cm]
 
-\Huge{\textbf{\projectTitle}}
+% \Huge{\projectTitle}
+\Large{\projectTitle}
 
 \vspace{1cm} 
 
-\Large{\textbf{\name}} \\[3pt]  
+\Large{\textbf{\name}} \\[3pt]
+\Large{\textbf{\name}} \\[3pt]
+
+
 \vspace{0.5cm}
 \large{Date: \timeFrame} \\
 
@@ -133,15 +118,24 @@
 \end{center}
 \end{titlepage}
 
+\input{sections/0_versioning}
 \input{sections/1_introduction}
 \input{sections/2_predicate_wallet}
 \newpage
-\input{sections/3_rpc_methods}
-% \input{sections/3_approach}
-% \input{sections/4_transparency}
-% \input{sections/5_project-plan}
-% \input{sections/6_budget}
-% \input{sections/7_contact-details}
+
+\input{sections/3_zapmanager}
+\input{sections/4_master}
+
+
+\input{sections/5_module00}
+\input{sections/6_module01}
+\input{sections/7_module02}
+\input{sections/8_module03}
+\input{sections/9_module04}
+\input{sections/10_module05}
+\input{sections/11_module06}
+\input{sections/12_module07}
+\input{sections/13_module08}
 
 \clearpage
 \bibliographystyle{plain}
