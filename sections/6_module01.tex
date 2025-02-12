@@ -2,102 +2,353 @@
 \section{Module 01 - {\ttfamily "module01\_evm\_txtype1"}}
 \label{sec:module01_predicate}
 
-spec writeup WIP.
+% \subsection{Overview}
+% Module 01 handles Legacy EVM transaction validation within the ZapWallet system. It validates and processes EVM transactions
+% by decoding RLP-encoded transaction data, verifying signatures, and ensuring proper asset flow through the Fuel network. Module0 01
+% only works for Fuel \text{BASE\_ASSET} transfers and the receiver should be the EVM address owner of a ZapWallet mapping.
+
+
+\subsection{Overview}
+Module 01 handles Legacy EVM transaction validation within the ZapWallet system. It validates and processes EVM transactions
+by decoding RLP-encoded transaction data, verifying signatures, and ensuring proper asset flow through the Fuel network. Module 01
+only works for Fuel \text{BASE\_ASSET} transfers. The receiver address in the RLP transaction data is an EVM address which maps
+to a corresponding ZapWallet master predicate address. \\
+
+Formally, for a transaction $T$ with recipient EVM address $r_{evm}$, the receiving ZapWallet address $w$ is derived:
+
+\[ f: r_{evm} \rightarrow w \text{ where } w = P(r_{evm}, c) \]
+
+where:
+\begin{itemize}
+   \item $P$ is the predicate address calculation function
+   \item $c$ is the receiver's wallet bytecode
+   \item $w$ is the resulting ZapWallet master predicate address
+\end{itemize}
+
+This mapping and calculation of the receivers address insures that EVM-style transactions are compatible with with ZapWallet's and
+by extension the Fuel network, while maintaining proper asset custody.
+
+
 
 % % ----------------------------------------------------------------------------------------------
-% \subsubsection{Validation logic type 1}
+% Merkle and address mapping
+
+\subsection{Receiver Address Mapping}
+For each transaction, Module 01 must verify that the Fuel \text{BASE\_ASSET} is sent to the correct ZapWallet address corresponding
+to the EVM address specified in the RLP transaction data. This mapping is accomplished through a merkle tree-based predicate address calculation.
+
+\subsubsection{Merkle Tree Structure}
+The ZapWallet master predicate address is derived from a two-leaf merkle tree where:
+\begin{itemize}
+    \item Left Leaf ($L_1$): Fixed blueprint hash known at compilation
+    \item Right Leaf ($L_2$): Variable leaf containing receiver's EVM address and configurables for the receiver's master predicate.
+\end{itemize}
+
+% The derivation process follows:
+% \[ H(L_2) = \text{SHA256}(0 \parallel bytecode[EVM_{addr}]) \]
+% \[ N = \text{SHA256}(1 \parallel L_1 \parallel H(L_2)) \]
+% \[ root = N \]
+% \[ address = \text{SHA256}(\texttt{FUEL} \parallel root) \]
+
+% where:
+% \begin{itemize}
+%     \item $0$ is the leaf prefix byte
+%     \item $1$ is the node prefix byte
+%     \item $\texttt{FUEL}$ is the contract ID seed (\texttt{0x4655454C})
+%     \item $EVM_{addr}$ is placed at position 6760 in the right leaf
+% \end{itemize}
+
+The derivation process follows these precise steps:
+
+\textbf{1. Leaf Hashing:}
+\[ H(L_2) = \text{SHA256}(\texttt{0x00} \parallel bytecode[EVM_{addr}]) \]
+where \texttt{0x00} is the leaf prefix identifying this as a leaf node
+
+\textbf{2. Node Computation:}
+\[ N = \text{SHA256}(\texttt{0x01} \parallel L_1 \parallel H(L_2)) \]
+where \texttt{0x01} is the node prefix identifying this as an internal node
+
+\textbf{3. Root:}
+\[ root = N \]
+
+\textbf{4. Predicate Address:}
+\[ address = \text{SHA256}(\texttt{0x4655454C} \parallel root) \]
+where \texttt{0x4655454C} represents "FUEL" in ASCII as the contract ID seed. For a complete
+implementation of Fuel's merkle tree specification, see the official implementation
+at \url{https://github.com/FuelLabs/fuel-vm/tree/master/fuel-merkle}.
 
 
-% The purpose of \texttt{tx\_type} = 1 is to provide the validation logic for a signed typed RLP encoded EVM transaction for the base asset (ETH) on Fuel.\\
+\subsubsection{Verification Process}
+For a transaction with recipient EVM address $r_{evm}$, Module 01:
+1. Takes the provided right leaf bytecode
+2. Inserts $r_{evm}$ at the predetermined position (6760)
+3. Calculates the merkle tree and resulting predicate address
+4. Verifies the \text{BASE\_ASSET} output is sent to this address
 
-% The current predicate wallet supports Legacy and EIP-1559 EVM transactions. Both EVM transaction types are decoded by the predicate wallet itself and transaction
-% criteria are matched for validity.\\
-
-
-% \textbf{EVM Legacy Tx:} \\
-
-% The following example best explains how the \texttt{tx bytes rlp} from a Legacy EVM transaction are encoded and decoded within \texttt{rlp\_utls5.sw}.\\
-
-% transaction bytes encoded:\\
-% \begin{small}
-%     \begin{verbatim}
-% eb08822cb482520894ff03ffd5d3e881c60a91eaa30c67d03aec025c4987ea7aa
-% 67b2d00008083097bc88080 + compact signature
-%     \end{verbatim}
-% \end{small}
+This ensures that funds from EVM-style transactions are always directed to the correct ZapWallet predicate address,
+maintaining the mapping between EVM addresses and their corresponding ZapWallets.
 
 
-% \begin{small}
-% \begin{verbatim}
-% eb --> 0xc0 + length of payload (everything before the sig,
-%         not including the first byte ) 0xc0 + 0x2b = 0xeb
-% 08 --> nonce
-% 82 --> rlp encoded integer (0x80 and 0x02 bytes long)
-% 2cb4 --> gas_price
-% 82 --> rlp encoded integer (0x80 and 0x02 bytes long)
-% 5208 --> gas_limit or max_fee_per_gas
-% 94 --> rlp encoding
-% ff03ffd5d3e881c60a91eaa30c67d03aec025c49 --> to (evm address)
-% 87 --> (0x80 and 0x07 bytes long)
-% ea7aa67b2d0000 --> value (amount wei)
-% 8030
-% 97bc8 --> chain_id --> odd number of characters
-% 8080
-% \end{verbatim}
-% \end{small}
 
 
-% The logic for the above decoding can be seen in \texttt{rlp\_utls5.sw} from lines \href{https://github.com/Layer3Labs/zap-contracts/blob/9b2e0b8229077ef8becd6af0ad1a91f810a8db0a/contracts/wallet_predicate/src/rlp_utils5.sw#L153-L280}{\uline{153-280}}\\
 
 
-% \textbf{EVM EIP-1559 Tx:} \\
+% % ----------------------------------------------------------------------------------------------
+% RLP
 
-% In a similar way the following example best explains how the \texttt{tx bytes rlp} from an EIP-1559 EVM transaction are encoded and decoded within \texttt{rlp\_utls5.sw}.\\
+\subsection{RLP Transaction Decoding}
+\label{subsec:rlp_decoding}
 
-% transaction bytes encoded:\\
-% \begin{small}
-%     \begin{verbatim}
-% 02f87283097bc8018085011bd4e67982520894ff03ffd5d3e881c60a91eaa30c6
-% 7d03aec025c49881148e7a6abbfc00080c001a0 + compact signature
-%     \end{verbatim}
-% \end{small}
+EVM transactions are encoded using Recursive Length Prefix (RLP) encoding (previous to simple serialize (SSZ)). Modules 01-03 implement
+RLP decoding systems for Legacy and EIP-1559 transactions (which can include ERC20 transfers). This RLP decoding scheme
+is similar across Modules 01, 02 and 03 in the ZapWallet and can be broken down into several layers:
 
-
-% \begin{small}
-% \begin{verbatim}
-% 02 --> tx type
-% f872 --> rlp encoding byte length
-% 83 --> rlp encoded 3 bytes
-% 097bc --> chain id
-% 80 --> rlp encoded 1 byte
-% 1 --> nonce
-% 8085 --> rlp encoded 5 bytes
-% 011bd4e679 --> gas price
-% 82 --> rlp encoded 2 bytes
-% 5208 --> gas limit
-% 94 --> rlp encoded 20 bytes
-% ff03ffd5d3e881c60a91eaa30c67d03aec025c49 --> to (evm address)
-% 88 --> rlp encoding 8 bytes
-% 1148e7a6abbfc000 --> value (wei)
-% 80 --> rlp encoded 1 byte
-% c0
-% 01a0 --> rlp encoded
-% \end{verbatim}
-% \end{small}
-
-% The logic for the above decoding can be seen in \texttt{rlp\_utls5.sw} from lines \href{https://github.com/Layer3Labs/zap-contracts/blob/9b2e0b8229077ef8becd6af0ad1a91f810a8db0a/contracts/wallet_predicate/src/rlp_utils5.sw#L72-L152}{\uline{72-152}}\\
+\subsubsection{RLP Encoding Rules}
+The decoder follows standard Ethereum RLP encoding rules where bytes are categorized by their first byte (prefix):
+\begin{itemize}
+    \item \texttt{[0x00-0x7f]}: Single byte (transaction type identifier)
+    \item \texttt{[0x80-0xb7]}: String with length 0-55 bytes
+    \item \texttt{[0xb7-0xbf]}: String with length $>$ 55 bytes
+    \item \texttt{[0xc0-0xf7]}: List with total payload 0-55 bytes
+    \item \texttt{[0xf7-0xff]}: List with total payload $>$ 55 bytes
+\end{itemize}
 
 
-% \textbf{Tx validation:} \\
+% -------------------------------------------------------------------------
+% Legacy
 
-% At the current \href{https://github.com/Layer3Labs/zap-contracts/commit/0e50f07c9350bb790d3a19d5302acd3ce96d310f}{\uline{commit}} a Legacy or EIP-1559 EVM transaction
-% is validated on the following conditions:\\
+\subsubsection{Legacy EVM Transaction Structure}
+A Legacy EVM transaction's RLP encoding contains the following fields in order:
+\begin{lstlisting}
+[
+    nonce,           // u64: Transaction sequence number
+    gasPrice,        // u64: Price per unit of gas
+    gasLimit,        // u64: Maximum gas allowed
+    to,              // b256: Recipient address
+    value,           // u256: Amount of ETH to transfer
+    chainId,         // u64: Network identifier (EIP-155)
+    r,               // b256: Signature component
+    s                // b256: Signature component
+]
+\end{lstlisting}
 
-% 1. The transaction is signed by the owner of the predicate wallet (secp256k1 private key).\\
-% 2. The transaction contains a nonce is equal to (0xFFFFFFFF - nonce) remaining nonce tokens held in the predicate wallet. \\
-% 3. There is at least one one output for the remaining nonce tokens equal to (0xFFFFFFFF - (nonce -1 )) and returned to the predicate wallet.\\
+\subsubsection{Decoding Process}
+The decoding process follows these steps:
 
-% Note: currently no checks are done against the value sent within the transaction or the change value. However, when the transaction is submitted to the RPC there
-% are change outputs added, and a failure will occur if the EVM signed transaction amount is greater than the predicate wallet balance.\
+1. \textbf{Payload Identification}:
+\begin{itemize}
+    \item Reads the first byte to determine the encoding type
+    \item Calculates total payload length
+    \item Validates encoding structure
+\end{itemize}
 
+2. \textbf{Field Extraction}:
+\[ decode: \text{RLP} \rightarrow (field, ptr, len) \]
+where:
+\begin{itemize}
+    \item $field$ is the decoded value
+    \item $ptr$ is the new buffer position
+    \item $len$ is the field length
+\end{itemize}
+
+3. \textbf{Type Conversion}:
+Different utilities handle specific data types:
+\begin{itemize}
+    \item \texttt{rlp\_read\_u64}: Converts bytes to unsigned 64-bit integer
+    \item \texttt{rlp\_read\_b256}: Converts bytes to 256-bit value
+    \item \texttt{rlp\_read\_bytes\_to\_u256}: Converts variable-length bytes to u256
+\end{itemize}
+
+\subsubsection{EIP-155 Processing}
+The decoder implements EIP-155 chain ID recovery:
+\[ chain\_id = \begin{cases}
+    \frac{v - 35}{2} & \text{if } v \geq 35 \\
+    0 & \text{otherwise}
+\end{cases} \]
+
+where $v$ is the recovery identifier from the signature.
+
+\subsubsection{Signature Recovery}
+The final step reconstructs the compact signature:
+\begin{itemize}
+    \item Normalizes the recovery ID
+    \item Combines $r$ and $s$ components
+    \item Sets the recovery bit in the high bit of $s$
+\end{itemize}
+
+
+% -------------------------------------------------------------------------
+% EIP-1559
+
+\subsubsection{EVM EIP-1559 Transaction Structure}
+An EVM EIP-1559 (Type 2) transaction's RLP encoding contains the following fields in order:
+\begin{lstlisting}
+[
+    chainId,              // u64: Network identifier
+    nonce,               // u64: Transaction sequence number
+    maxPriorityFeePerGas,// u64: Max priority fee (tip)
+    maxFeePerGas,        // u64: Maximum total fee per gas
+    gasLimit,            // u64: Maximum gas allowed
+    to,                  // b256: Recipient address
+    value,              // u256: Amount of ETH to transfer
+    data,               // bytes: Transaction data (empty for simple transfers)
+    accessList,         // []: List of addresses and storage keys
+    v,                  // u64: Signature recovery identifier
+    r,                  // b256: Signature component
+    s                   // b256: Signature component
+]
+\end{lstlisting}
+
+
+% -------------------------------------------------------------------------
+% EIP-1559 ERC20
+
+\subsubsection{EVM ERC20 Transaction Structure}
+An EVM ERC20 transaction (Type 2) extends the EIP-1559 structure with specific data field encoding:
+\begin{lstlisting}
+[
+    chainId,              // u64: Network identifier
+    nonce,               // u64: Transaction sequence number
+    maxPriorityFeePerGas,// u64: Max priority fee (tip)
+    maxFeePerGas,        // u64: Maximum total fee per gas
+    gasLimit,            // u64: Maximum gas allowed
+    to,                  // b256: ERC20 contract address
+    value,              // u256: Must be 0 for ERC20 transfers
+    data: [             // bytes: Encoded transfer function call
+        methodId,        // bytes4: transfer(address,uint256) selector
+        recipient,       // b256: Token EVM recipient address
+        amount          // b256: Amount of tokens to transfer
+    ],
+    accessList,         // []: List of addresses and storage keys
+    v,                  // u64: Signature recovery identifier
+    r,                  // b256: Signature component
+    s                   // b256: Signature component
+]
+\end{lstlisting}
+
+\textbf{ERC20 Data Field Details:}
+The data field for ERC20 transfers consists of:
+\begin{itemize}
+    \item \texttt{methodId}: \texttt{0xa9059cbb} (transfer function selector)
+    \item \texttt{recipient}: 32-byte padded address
+    \item \texttt{amount}: 32-byte token amount
+\end{itemize}
+
+The field decoded to the ERC20 contract address is translated to the corresponding Fuel Native Asset ID
+using the \texttt{compare\_asset\_ids} function. This allows Fuel native assets to be transferred as EVM ERC20 transfers on the Fuel network.
+
+
+
+% % ----------------------------------------------------------------------------------------------
+% % ----------------------------------------------------------------------------------------------
+% Module 01 functionality
+
+
+\subsection{Module 01 Core Functionality}
+The module validates transactions through several key steps:
+\begin{enumerate}
+    \item RLP decoding of signed EVM transactions
+    \item Signature and chain ID verification
+    \item Asset input and output validation
+    \item Nonce management
+    \item Gas price and limit verification
+\end{enumerate}
+
+\subsection{Transaction Processing}
+\subsubsection{EVM Transaction Decoding}
+The module decodes Legacy EVM transactions into their constituent fields:
+\begin{itemize}
+    \item Chain ID (per EIP-155)
+    \item Nonce
+    \item Gas Price
+    \item Gas Limit
+    \item Recipient EVM Address
+    \item Value (Base Asset amount in Wei)
+    \item Signature Components (v, r, s)
+\end{itemize}
+
+\subsubsection{Validation Requirements}
+For a transaction to be valid, it must satisfy:
+\begin{itemize}
+    \item Correct chain ID matching Fuel network
+    \item Valid signature from wallet owner
+    \item Sufficient input amounts covering value, gas and builder\_tip
+    \item Proper nonce accounting matching the RLP data
+    \item Valid input and output coins with correct owners
+\end{itemize}
+
+
+The builder\_tip needs be a Coin Output with some value (can be zero). It is not enforced that the transaction builder
+is required to "tip" themselves. Therefore, the value of the \text{BASE\_ASSET} output to the receiver is always the amount specified in the RLP
+data. The gas consumed by the transaction comes out of the \text{max\_tx\_cost} budget, which is made up of:
+
+\[
+\text{max\_tx\_cost} = \text{Fuel network fee} + \text{builder\_tip}
+\]
+
+Any difference in \text{BASE\_ASSET} that is not consumed by the sum of the transaction outputs (for \text{BASE\_ASSET}) is sent back to the
+owners ZapWallet master Address as a Change output.
+
+
+\subsection{Asset Flow}
+A transaction containing Module 01 processes three types of assets:
+\begin{itemize}
+    \item Module 01 asset (for validation authorization of the signed RLP data)
+    \item Nonce asset (to prevent signature replay)
+    \item \text{BASE\_ASSET} (for value transfer and gas) from the master
+\end{itemize}
+
+
+
+
+\subsection{Transaction Structure}
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 01\\ asset: Module 01\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{Legacy EVM\\ Transaction}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Module 01\\ asset: Module 01\\ AssetId\\ amount: 1} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: Nonce AssetId\\ amount: $n$,\\ where $n \geq 1$}
+            \ar[r] & *+[H]\txt{Nonce value \\ \& ownership\\ validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Master\\ asset: Nonce AssetId\\ amount: $n - 1$} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount:\\ value + max\_tx\_cost}
+            \ar[r] & *+[H]\txt{Value \&\\ max\_tx\_cost \\ Validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Receiver\\ asset: BASE\_ASSET\\ amount: value} \\
+        & \phantom{*+[F=]\txt{Placeholder}}
+            \ar[r] & *+[H]\txt{max\_tx\_cost\\ Validation}
+            \ar[r] & *+[F.:purple:dashed]\txt{type: Coin\\ to: Transaction\\ Builder\\ asset: BASE\_ASSET\\ amount:\\ $\text{max\_tx\_cost} - \text{network fee}$} \\
+        & \phantom{*+[F=]\txt{Placeholder}}
+            & \phantom{*+[F=]\txt{Placeholder}}
+            & *+[F.:grey:dashed]\txt{type: Change\\ to: master\\ asset: BASE\_ASSET\\ amount: \\ $\text{receiver value} - \text{network fee} - \text{network fee}$}
+    }}
+    }
+    \caption{Compact Module 01 Legacy EVM Transaction Flow and Verification}
+    \label{fig:legacy-flow-xy-compact}
+\end{figure}
+
+
+\subsection{Security Properties}
+
+\subsubsection{Asset Conservation}
+For module01 asset $M_1$ and predicate address $P$:
+\[ \exists \text{ output } o : o.asset = M_1 \land o.amount = 1 \land o.to = P \]
+
+\subsubsection{Nonce Sequencing}
+For nonce value $n$ and transaction nonce $t$:
+\[ n = NONCE\_MAX - t \]
+\[ \exists \text{ output } o : o.asset = N \land o.amount = n - 1 \]
+
+\subsubsection{Value Transfer}
+For transaction value $v$ and max cost $c$:
+\[ \sum \text{inputs} \geq v + c \]
+\[ \exists \text{ output } o : o.asset = BASE\_ASSET \land o.amount = v \land o.to = receiver \]
+
+
+\subsection{Error Handling}
+The module includes error handling that propagates errors to at maximum the \text{main()} scope. However as predicates
+must return boolean results, all errors result in a \text{false} returned from the main execution.
 
