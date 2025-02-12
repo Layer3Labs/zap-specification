@@ -14,7 +14,6 @@ Let:
 \begin{itemize}
     \item $\mathbb{B}_{256}$ be the set of 256-bit values
     \item $\mathbb{A}$ be the set of valid Fuel addresses
-    \item $\mathbb{U}_{64}$ be the set of 64-bit unsigned integers
 \end{itemize}
 
 \textbf{Module}\\
@@ -187,52 +186,90 @@ The system identifies modules by matching both:
 % ---------------------------------------------------------------------------------------------------------------
 
 \subsection{Initialization Flow}
-The initialization of a ZapWallet can be done using the owner Fuel \text{BASE\_ASSET} to pay for gas or from a third party that spends their own gas. If the owner is
-initializing their own ZapWallet (self-initialization) which spends a \text{BASE\_ASSET} UTXO from the master, this involves a signature within the \texttt{WalletOp} parameter.
+The initialization of a ZapWallet can be done in one of two ways; using the owners Fuel \text{BASE\_ASSET} to pay for gas or from a third party that spends their own gas. If the owner is
+initializing their own ZapWallet (self-initialization) this involves spending a \text{BASE\_ASSET} UTXO from the master, which requires a signature from the owner within
+the \texttt{WalletOp} parameter of the master \text{main()} function call parameters. An initialization by way of a third party does not spend gas (or any other asset) from the
+owners master.
 
-\subsubsection{Transaction Structure}
-A valid initialization transaction requires:
+\subsubsection{Self-Initialization}
+A valid self-initialization initialization transaction requires:
 \begin{itemize}
     \item Exactly two inputs:
         \begin{itemize}
-            \item One coin input containing FUEL \text{BASE\_ASSET} for gas
+            \item One coin input containing FUEL \text{BASE\_ASSET} for gas from the owners master address
+            \item One contract input referencing the ZapManager contract
+        \end{itemize}
+    \item A single change output returning unused FUEL \text{BASE\_ASSET} to owners master address
+\end{itemize}
+
+
+The self-initialization route requires a single distinct signature from the owner. A standard EIP-712 compliant signature over the initialization data structure:
+% \begin{small}
+% \begin{verbatim}
+% Initialization(
+%     string command,    // "ZapWalletInitialize"
+%     bytes32 evmaddr,   // Owner's padded EVM address
+%     bytes32 utxoid     // UTXO ID of the gas coin input
+% )
+% \end{verbatim}
+% \end{small}
+
+\begin{lstlisting}
+    Initialization(
+        string command,    // "ZapWalletInitialize"
+        bytes32 evmaddr,   // Owner's padded EVM address
+        bytes32 utxoid     // UTXO ID of the gas coin input
+    )
+\end{lstlisting}
+
+
+\subsubsection{Third Part Initialization}
+A valid initialization transaction made my a third party requires:
+\begin{itemize}
+    \item Exactly two inputs:
+        \begin{itemize}
+            \item One coin input containing FUEL \text{BASE\_ASSET} for gas from whomever is sponsoring the transaction.
             \item One contract input referencing the ZapManager contract
         \end{itemize}
     \item A single change output returning unused FUEL \text{BASE\_ASSET} to the transaction sender
 \end{itemize}
 
-\subsubsection{Signature Requirements}
-The self-initialization route initialization process requires a single distinct signature:
-\begin{enumerate}
-    \item \textbf{Transaction Signature:} A standard EIP-712 compliant signature over the initialization data structure:
-    \begin{small}
-    \begin{verbatim}
-    Initialization(
-        string command,    // "ZapWalletInitialize"
-        bytes32 evmaddr,   // Owner's ETH address
-        bytes32 utxoid     // UTXO ID of the coin input
-    )
-    \end{verbatim}
-    \end{small}
-\end{enumerate}
 
+
+
+
+
+
+% --- calling the initialize_wallet() function at the ZapManager
 \subsubsection{Contract Interaction}
 The initialization flow proceeds as follows:
 \begin{enumerate}
-    \item The transaction calls the ZapManager contract \text{initialize\_wallet()} function
-    \item The contract verifies the nonce has not already been minted
-    \item Upon verification, the contract:
-        \begin{itemize}
-            \item Mints the nonce tokens
-            \item Sends (\text{NONCE\_MAX} - 1) to the ZapWallet master predicate
-            \item Retains one token for transaction validation
-        \end{itemize}
-    \item The master predicate verifies:
-        \begin{itemize}
-            \item The initialization signature
-            \item Transaction structure
-            \item Change output validity
-        \end{itemize}
+   \item The transaction calls the ZapManager contract function
+    \begin{lstlisting}
+    initialize_wallet()
+    \end{lstlisting}
+
+   \item The contract verifies no existing nonce token exists for the tuple $(a, m)$ where:
+       \begin{itemize}
+           \item $a \in \mathbb{B}_{256}$: The padded EVM address
+           \item $m \in Address$: The master predicate address
+       \end{itemize}
+       See Section~\ref{subsec:overview-sec:zapmanager_contract} for details regarding the mapping.
+   \item Upon verification, the contract:
+       \begin{itemize}
+           \item Mints the nonce tokens
+           \item Sends (\text{NONCE\_MAX} - 1) to the ZapWallet master predicate
+           \item Retains one token for transaction validation
+       \end{itemize}
+   \item The master predicate verifies:
+       \begin{itemize}
+           \item The initialization signature
+           \item Transaction structure
+           \item Change output validity
+       \end{itemize}
 \end{enumerate}
 
-Upon successful completion of the \text{initialize\_wallet()} function call, the ZapWallet is initialized and ready for module operations.
+
+
+
+Upon successful completion of the \text{initialize\_wallet} function call, the ZapWallet is initialized and ready for module operations.

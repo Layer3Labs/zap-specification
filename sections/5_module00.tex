@@ -2,23 +2,154 @@
 \section{Module 00 - {\ttfamily "module00\_upgrade"}}
 \label{sec:module00_predicate}
 
-spec writeup WIP.
+\subsection{Overview}
+Module 00 serves as the upgrade predicate for a ZapWallet, it facilitating secure transitions between Zap wallet versions. This
+module ensures that upgrades are authorized by the wallet owner and maintains proper asset flow during the upgrade process. The
+transaction structure for the upgrade procedure can be gas sponsored by a third party or gas can be spent by the owner of the ZapWallet.
+
+\subsection{Module 00 Core Functionality}
+The module validates upgrade transactions through:
+\begin{itemize}
+    \item Verification of upgrade acknowledgment signatures
+    \item Asset flow validation
+    \item Version control checks
+    \item Ownership verification
+\end{itemize}
 
 
-% The purpose of \texttt{tx\_type} = 0 is to provide the validation logic for a transaction that initializes the predicate wallet. This consists of calling
-% the nonce manager contract which mints "nonce token" assets and sends the mint amount - 1 to the predicate wallet. Once the predicate wallet contains some
-% amount of this asset type, and the nonce manager contract contains at least 1 (one) of these assets, the predicate wallet is considered initialized.\\
+\subsection{Configuration Parameters}
+The module requires the following configuration:
+\begin{itemize}
+    \item \texttt{OWNER\_ADDRESS}: Wallet owner's EVM address
+    \item \texttt{NONCE\_ASSETID}: Wallet's nonce AssetId
+    \item \texttt{MODULE\_KEY00\_ASSETID}: Upgrade module's AssetId
+    \item \texttt{ZAPMANAGER\_V1}: ZapManager V1 contract Address
+    \item \texttt{VERSION}: Module00 version identifier
+\end{itemize}
 
-% The \texttt{tx\_type} = 0 transaction type is necessary to mint "nonce token" assets, without nonce tokens of a specific asset\_id held as a UTXO at the predicate
-% wallet address, \texttt{tx\_type} = 1 transactions will not work. Within an EVM Legacy and EIP-1559 transaction the "nonce" field is populated with
-% the current transaction count for the account (EOA) making the transaction call. This number (the nonce) is incremented every time a
-% transaction is successfully included in a block on an EVM compatible chain. However when constructing a predicate wallet (abstracted account) there is
-% no concept built in to a transaction type that includes the facility to obtain a transaction count for a particular address or predicate root. Therefore,
-% for a predicate wallet to validate EVM style transactions, that are presented to the predicate as a simple byte stream, there must be a some mechanism by
-% which a transaction count (for the predicate wallet) can persist past the scope of a single transaction. Nonce tokens serve the purpose of keeping track
-% of the transaction count of a predicate wallet. For each
-% successful transaction (EVM style) the nonce token count is reduced by one. That is, for every transaction, the total amount of nonce tokens (held as
-% a UTXO) are included as an input to the transaction and the total amount - 1 is included as a transaction output to the same transaction. Thus
-% giving the transaction builder an easy mechanism to obtain the current transaction count (nonce) of a predicate wallet.\\
+
+
+\subsection{Asset Requirements}
+An upgrade transaction must satisfy the following asset conditions:
+\begin{itemize}
+    \item Module 00 asset must be sent to the ZapManager V1 contract
+    \item Nonce assets must be present in both inputs and outputs and be amount accounted for
+    \item Nonce asset ownership must be verified in the transaction flow
+\end{itemize}
+
+\subsection{Upgrade Acknowledgment}
+The upgrade process requires the owner to sign a structured acknowledgment message that contains crucial upgrade parameters:
+
+\begin{lstlisting}
+    WalletUpgradeAcknowledgment {
+        from_address: b256,     // Current wallet master address
+        to_address: b256,       // Target wallet master address
+        current_version: String, // Fixed at "1.0.0" for V1
+        target_version: String,  // Target version in X.Y.Z format
+        utxo_id: b256          // UTXO ID of the upgrade module
+    }
+\end{lstlisting}
+
+These parameters are formatted into a human-readable message that the owner must sign:
+
+\begin{lstlisting}
+    "UPGRADE ACKNOWLEDGMENT:
+    I understand and authorize that:\n\
+    1. ALL assets (Tokens, NFTs, and ETH) will be transferred from 0x<from_address> to 0x<to_address>
+    2. This upgrade will change my wallet from version <current_version> to <target_version>
+    3. This action cannot be reversed once executed
+    4. This authorization is valid only for this specific upgrade request
+    5. One time upgrade UTXO ID: <utxo_id>"
+\end{lstlisting}
+
+The explicit acknowledgment ensures the owner understands the scope and implications of the upgrade process.
+
+
+
+\subsection{Validation Flow}
+The module performs the following verification steps:
+\begin{enumerate}
+    \item Verifies module00 asset is properly sent to ZapManager V1
+    \item Confirms nonce asset presence and ownership in inputs
+    \item Validates nonce asset destination in outputs
+    \item Constructs and verifies the upgrade acknowledgment message
+    \item Recovers signer address from EIP-191 signature
+    \item Validates signer against wallet owner address
+\end{enumerate}
+
+\subsection{Security Properties}
+The module enforces several critical security properties:
+
+
+
+
+\subsubsection{Asset Conservation}
+The upgrade module must ensure proper handling of the module asset during the upgrade process. For the module00
+asset $M_0$ and ZapManager contract address $Z$, the following must be true:
+\[ \exists \text{ output } o : o.asset = M_0 \land o.to = Z \]
+This means there must exist a transaction output that sends the module00 asset to the ZapManager contract
+address. This requirement ensures the module asset is properly transferred for the upgrade process and cannot be diverted elsewhere.
+
+\subsubsection{Nonce Continuity}
+The nonce asset $N$ must maintain proper ownership throughout the
+upgrade. For addresses $(from, to)$:
+\[ \exists \text{ input } i : i.asset = N \land i.owner = from \]
+\[ \exists \text{ output } o : o.asset = N \land o.to = to \]
+This enforces two key requirements:
+\begin{itemize}
+   \item The transaction must include the nonce asset from the owner's current wallet address
+   \item The nonce asset must be properly forwarded and the amount be equal.
+\end{itemize}
+This mechanism prevents transaction replay attacks in Modules 01-03 and ensures proper ZapWallet upgrade.
+
+\subsubsection{Signature Verification}
+The upgrade must be authorized by the wallet owner through a cryptographic signature. For owner
+address $O$ and upgrade acknowledgment message $m$:
+\[ ec\_recover(signature, hash(m)) = O \]
+This validation:
+\begin{itemize}
+   \item Recovers the signer's address from the EIP-191 signature
+   \item Verifies it matches the wallet owner's address
+   \item Ensures only the legitimate owner can authorize upgrades
+\end{itemize}
+The message $m$ contains critical upgrade parameters including source and destination addresses,
+ensuring the owner explicitly acknowledges the upgrade details.
+
+
+
+
+\subsection{Upgrade Transaction Inputs and Output}
+The following diagram illustrates the transaction inputs, verification mechanism for each transaction input and resulting outputs. If
+the upgrade transaction is sponsored then the total amount of ZapWallet owner \text{BASE\_ASSET} input should be equal to the \text{BASE\_ASSET}
+output going to the V2 master. The Sponsor should pay for the gas to the transaction. Otherwise if the user is spending their own gas execute
+the upgrade transaction the \text{BASE\_ASSET} input should equal the \text{BASE\_ASSET} output minus the network fee.
+
+
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature\\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 00\\ asset: Module 00\\ AssetId\\ amount: $u$\\ where $u \geq 1$}
+            \ar[r] & *+[H]\txt{Upgrade\\ acknowledgement\\ EIP-191}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: ZapManager\\ contract\\ asset: Module 00\\ AssetId\\ amount: $u$} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: Nonce AssetId\\ amount: $n$,\\ where $n \geq 1$}
+            \ar[r] & *+[H]\txt{Asset\\ Ownership\\ Validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: V2 Master\\ asset: Nonce AssetId\\ amount: $n - 1$} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount: x}
+            \ar[r] & *+[H]\txt{VM Balance \\ Validation }
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: V2 Master\\ asset: BASE\_ASSET\\ amount: remaining \\ or x if not sponsored} \\
+        & *+[F][orange]\txt{Coin: Sponsor\\ asset: BASE\_ASSET\\ amount: $sg$}
+            \ar[r] & *+[H][orange]\txt{VM Balance\\ Validation}
+            \ar[r] & *+[F][orange]\txt{type: Change\\ to: Sponsor\\ asset: BASE\_ASSET\\ amount:\\ $sg$ remaining}
+    }}
+    }
+    \caption{Module 00 Upgrade Transaction Flow and Verification}
+    \label{fig:upgrade-flow-xy}
+\end{figure}
+
+
 
 
