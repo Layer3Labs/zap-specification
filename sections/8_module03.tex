@@ -2,5 +2,146 @@
 \section{Module 03 - {\ttfamily ""module03\_erc20"}}
 \label{sec:module03_predicate}
 
-spec writeup WIP.
+\subsection{Overview}
+Module 03 enables Fuel native assets to be transferred using the familiar ERC20 token transfer pattern. It processes EIP-1559 EVM transactions
+that contain ERC20 transfer function calls by mapping the ERC20 contract addresses in these transactions to their corresponding Fuel native
+AssetIds (see section \ref{subsec:asset_maapping:sec:module03_predicate} for detailed mapping). This allows users to interact with Fuel
+native assets using standard EVM tooling and interfaces while maintaining the security properties of the ZapWallet architecture. \\
+
+For a transaction $T$ with recipient EVM address $r_{evm}$ and ERC20 contract address $c_{evm}$, the transfer is mapped:
+\[ f: (c_{evm}, r_{evm}) \rightarrow (a_{fuel}, w) \]
+where:
+\begin{itemize}
+    \item $a_{fuel}$ is the corresponding Fuel native AssetId
+    \item $w$ is the recipient's ZapWallet address derived as described in section \ref{sec:module01_predicate}
+\end{itemize}
+
+
+
+
+% % ----------------------------------------------------------------------------------------------
+% ERC20 --> Native asset transaction.
+
+\subsubsection{ERC20 Address to Fuel AssetId Mapping}
+\label{subsec:asset_maapping:sec:module03_predicate}
+The ERC20 contract address from the RLP transaction data must be mapped to its corresponding Fuel native AssetId. This
+mapping is achieved through a 20-byte comparison mechanism: \\
+
+\textbf{Address Structure:}
+\begin{itemize}
+    \item EVM addresses are 20 bytes
+    \item Fuel AssetIds are 32 bytes (use of AssetId or b256 types vary)
+\end{itemize}
+
+For a given ERC20 contract address $a_{evm}$ and Fuel AssetId $a_{fuel}$, the matching is performed as:
+
+\[ a_{fuel} = \underbrace{0^{12}}_\text{prefix} \parallel \underbrace{a_{evm}}_\text{20 bytes} \]
+
+The comparison function verifies:
+\begin{small}
+\begin{verbatim}
+x: [0x000000000000000000000000][aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+                12 zeros             20-byte EVM address
+y: [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa][bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]
+        20-byte EVM address                    12 arbitrary bytes
+\end{verbatim}
+\end{small}
+
+where:
+\begin{itemize}
+    \item $x$ is the expected AssetId layout (32 bytes)
+    \item $y$ is the full Fuel AssetId being compared
+    \item The function compares the last 20 bytes of $x$ with the first 20 bytes of $y$
+\end{itemize}
+
+This mapping ensures that ERC20 transfers in EVM transactions can be correctly matched to their corresponding Fuel native
+assets while maintaining the full 32-byte precision required by the Fuel network.\\
+
+
+
+
+
+
+% % ----------------------------------------------------------------------------------------------
+% % ----------------------------------------------------------------------------------------------
+% Module 03 functionality
+
+\subsection{Core Functionality}
+The module validates transactions through several key steps:
+\begin{enumerate}
+    \item ERC20 transfer data extraction from EIP-1559 transaction
+    \item ERC20 contract address to Fuel AssetId mapping
+    \item Signature and chain ID verification
+    \item Asset input and output validation
+    \item Nonce management
+    \item Gas price and limit verification
+\end{enumerate}
+
+\subsection{Asset Flow}
+The module processes four types of assets:
+\begin{itemize}
+    \item Module 03 asset (for validation authorization)
+    \item Nonce asset (to prevent signature replay)
+    \item Fuel Native asset $\neq$ \text{BASE\_ASSET} (mapped from ERC20 contract) for transfer
+    \item \text{BASE\_ASSET} (for gas payment and builder tip) from the master.
+\end{itemize}
+
+In the same way as Module 01 and 02, the builder\_tip needs to exist as a Coin Output with some value (can be zero). It is not enforced that the transaction builder
+is required to "tip" themselves. See section \ref{subsec:gas_costing:sec:module02_predicate} for details.
+
+
+\subsection{Transaction Structure}
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 03\\ asset: Module 03\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{EIP-1559\\ ERC20\\ Transfer}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Module 03\\ asset: Module 03\\ AssetId\\ amount: 1} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: Nonce AssetId\\ amount: $n$,\\ where $n \geq 1$}
+            \ar[r] & *+[H]\txt{Nonce value \\ \& ownership\\ validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Master\\ asset: Nonce AssetId\\ amount: $n - 1$} \\
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: Native Asset\\ amount: token\_value}
+            \ar[r] & *+[H]\txt{Token Value \\ Validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Receiver\\ asset: Native Asset\\ amount: token\_value} \\
+        & *+[F]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount: max\_tx\_cost}
+            \ar[r] & *+[H]\txt{Gas \\ Validation}
+            \ar[r] & *+[F.:purple:dashed]\txt{type: Coin\\ to: Transaction\\ Builder\\ asset: BASE\_ASSET\\ amount:\\ $\text{max\_tx\_cost} - \text{network fee}$} \\
+        & \phantom{*+[F]\txt{Placeholder}}
+            & \phantom{*+[H]\txt{Placeholder}}
+            & *+[F=]\txt{type: Change\\ to: Master\\ asset: Native Asset\\ amount: remaining}
+    }}
+    }
+    \caption{Module 03 ERC20 Transaction Flow and Verification}
+    \label{fig:erc20-flow-xy}
+\end{figure}
+
+\subsection{Security Properties}
+
+\subsubsection{Asset Conservation}
+For module03 asset $M_3$ and predicate address $P$:
+\[ \exists \text{ output } o : o.asset = M_3 \land o.amount = 1 \land o.to = P \]
+
+\subsubsection{Native Asset Conservation}
+For native asset $a$ mapped from ERC20 contract:
+\[ \sum \text{inputs}(a) = \sum \text{outputs}(a) \]
+
+
+\subsubsection{Signature Replay Prevention}
+The nonce mechanism in Module 03 serves primarily as protection against signature replay attacks rather than traditional transaction
+sequencing. For a given transaction signature with nonce value $t$, the system maintains a monotonically decreasing counter $n$:
+\[ n = NONCE\_MAX - t \]
+\[ \exists \text{ output } o : o.asset = N \land o.amount = n - 1 \]
+
+This ensures each signature can only be used once, as the nonce asset's decreasing value prevents reuse of any previously
+signed transaction data.
+
+\subsection{Error Handling}
+The module includes error handling that propagates errors to at maximum the \text{main()} scope. However as predicates
+must return boolean results, all errors result in a \text{false} returned from the main execution.
+
+
 

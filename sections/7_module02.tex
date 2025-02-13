@@ -2,5 +2,167 @@
 \section{Module 02 - {\ttfamily ""module02\_evm\_txtype2"}}
 \label{sec:module02_predicate}
 
-spec writeup WIP.
+
+\subsection{Overview}
+Module 02 handles EIP-1559 EVM transaction validation within the ZapWallet system. Like Module 01, it processes \text{BASE\_ASSET}
+transfers but implements the EIP-1559 fee market mechanism instead of Legacy EVM's first-price gas auction. For transaction processing
+details including RLP decoding and address mapping, see sections \ref{subsec:rlp_decoding} and \ref{sec:module01_predicate}.\\
+
+\subsection{Key Differences from Module 01}
+The primary distinction lies in the fee structure and account of the \text{max\_tx\_cost} signed by the owner:\\
+
+\textbf{Legacy (Module 01):}
+\[ gas\_cost = gasPrice \times gasLimit \]
+
+\textbf{EIP-1559 (Module 02):}
+\[ gas\_cost = (baseFee + maxPriorityFeePerGas) \times gasLimit \]
+where:
+\[ maxFeePerGas \geq baseFee + maxPriorityFeePerGas \]
+
+
+% % ----------------------------------------------------------------------------------------------
+% %
+
+
+\subsection{Gas Calculation and Cost Flow}
+\label{subsec:gas_costing:sec:module02_predicate}
+Module 02 implements a flexible gas fee structure that handles network fees and optional builder tips. The cost structure is derived from the
+gas parameters in the EIP-1559 transaction:\\
+
+\subsubsection{Gas Parameters}
+For a transaction with gas parameters $(g_{limit}, g_{price})$:
+\[ max\_tx\_cost = g_{limit} \times g_{price} \]
+
+\subsubsection{Cost Components}
+The total cost budget consists of:
+\begin{itemize}
+    \item \textbf{Network fee:} Required cost for transaction execution
+    \item \textbf{Builder tip:} Optional incentive for transaction inclusion
+    \item \textbf{Change:} Excess funds returned to sender
+\end{itemize}
+
+For input amount $i$, receiver value $v$, network fee $f$, and builder tip $b$:
+\begin{align*}
+i &\geq v + max\_tx\_cost \\
+0 &\leq b \leq max\_tx\_cost - f \\
+change &= i - (v + f + b)
+\end{align*}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.5cm,
+        box/.style={rectangle, draw=black, thick, minimum width=3cm, minimum height=1cm, align=center},
+        group/.style={rectangle, draw=black, dashed, inner sep=0.5cm}
+    ]
+        % RLP Transaction group
+        \begin{scope}[local bounding box=rlp]
+            \node[box] (G) {Gas Limit};
+            \node[box] (P) [right=1cm of G] {Gas Price};
+        \end{scope}
+        \node[above=0.3cm of rlp] {RLP Transaction};
+        \draw [dashed] ($(rlp.north west)+(-0.2,0.2)$) rectangle ($(rlp.south east)+(0.2,-0.2)$);
+
+        % Calculation group
+        \begin{scope}[local bounding box=calc]
+            \node[box] (M) [below=2cm of rlp] {max\_tx\_cost = \\ limit $\times$ price};
+        \end{scope}
+        \node[above=0.3cm of calc] {Calculations};
+        \draw [dashed] ($(calc.north west)+(-0.2,0.2)$) rectangle ($(calc.south east)+(0.2,-0.2)$);
+
+        % Constraints group
+        \begin{scope}[local bounding box=const]
+            \node[box] (C1) [below=2cm of M] {network\_fee $\leq$ max\_tx\_cost};
+            \node[box] (C2) [right=1cm of C1] {builder\_tip $\leq$ \\ max\_tx\_cost - network\_fee};
+            \node[box] (C3) [below=1cm of C1] {change = input - value - fee - tip};
+        \end{scope}
+        \node[above=0.3cm of const] {Constraints};
+        \draw [dashed] ($(const.north west)+(-0.2,0.2)$) rectangle ($(const.south east)+(0.2,-0.2)$);
+
+        % Arrows
+        \draw[-stealth] (G) -- (M);
+        \draw[-stealth] (P) -- (M);
+        \draw[-stealth] (M) -- (C1);
+        \draw[-stealth] (M) -- (C2);
+        \draw[-stealth] (C1) -- (C3);
+        \draw[-stealth] (C2) -- (C3);
+    \end{tikzpicture}
+    \caption{Gas Parameters and Cost Flow}
+    \label{fig:gas-params-tikz}
+\end{figure}
+
+This structure ensures:
+\begin{itemize}
+    \item Sufficient input covers value transfer and maximum costs
+    \item Network fee payment is guaranteed
+    \item Builder tips are optional but bounded
+    \item Excess funds automatically return to sender
+\end{itemize}
+
+
+
+
+% % ----------------------------------------------------------------------------------------------
+% %
+
+\subsection{Transaction Structure}
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 02\\ asset: Module 02\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{EIP-1559\\ Transaction}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Module 02\\ asset: Module 02\\ AssetId\\ amount: 1} \\
+        & *+[F]\txt{Coin predicate:\\ Master\\ asset: Nonce AssetId\\ amount: $n$,\\ where $n \geq 1$}
+            \ar[r] & *+[H]\txt{Nonce value \\ \& ownership\\ validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Master\\ asset: Nonce AssetId\\ amount: $n - 1$} \\
+        & *+[F]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount:\\ value + max\_tx\_cost}
+            \ar[r] & *+[H]\txt{Value \&\\ max\_tx\_cost \\ Validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Receiver\\ asset: BASE\_ASSET\\ amount: value} \\
+        & \phantom{*+[F]\txt{Placeholder}}
+            & \phantom{*+[H]\txt{Placeholder}}
+            & *+[F.:purple:dashed]\txt{type: Coin\\ to: Transaction\\ Builder\\ asset: BASE\_ASSET\\ amount:\\ priority fee} \\
+        & \phantom{*+[F]\txt{Placeholder}}
+            & \phantom{*+[H]\txt{Placeholder}}
+            & *+[F.:grey:dashed]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: remaining}
+    }}
+    }
+    \caption{Module 02 EIP-1559 Transaction Flow and Verification}
+    \label{fig:eip1559-flow-xy}
+\end{figure}
+
+
+
+
+
+\subsection{Security Properties}
+Module 02 maintains the same security properties as Module 01:
+
+\subsubsection{Asset Conservation}
+For module02 asset $M_2$ and predicate address $P$:
+\[ \exists \text{ output } o : o.asset = M_2 \land o.amount = 1 \land o.to = P \]
+
+\subsubsection{Signature Replay Prevention}
+As in other modules, the nonce mechanism protects against signature replay attacks:
+\[ n = NONCE\_MAX - t \]
+\[ \exists \text{ output } o : o.asset = N \land o.amount = n - 1 \]
+
+\subsubsection{Value Transfer}
+For transaction value $v$ and max cost $c$:
+\[ \sum \text{inputs} \geq v + c \]
+\[ \exists \text{ output } o : o.asset = BASE\_ASSET \land o.amount = v \land o.to = receiver \]
+
+All transaction validations and asset flow mechanisms remain identical to Module 01, with the only difference being the
+fee calculation and structure in the RLP transaction data.
+
+
+\subsection{Error Handling}
+The module includes error handling that propagates errors to at maximum the \text{main()} scope. However as predicates
+must return boolean results, all errors result in a \text{false} returned from the main execution.
+
+
+
 

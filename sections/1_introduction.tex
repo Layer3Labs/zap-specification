@@ -24,6 +24,7 @@ creation, operation and lifecycle. The ZapManager maintains three primary functi
 \textbf{1. Wallet Initialization.} The contract controls the initialization process for new ZapWallets by:
 \begin{itemize}
     \item Minting and distributing initial nonce native assets required for new ZapWallets using Modules 1-3
+    \item Minting and distributing Module Assets unique to each owners ZapWallet
     \item Managing associations between Ethereum addresses and their corresponding-ZapWallet
     \item Ensuring a ZapWallet can not re-initialize.
 \end{itemize}
@@ -47,9 +48,9 @@ creation, operation and lifecycle. The ZapManager maintains three primary functi
 \subsection{ZapWallet Architecture}
 
 The ZapWallet architecture consists of a master predicate that coordinates with multiple specialized module predicates,
-as shown in Figure \ref{fig:zapwallet-structure}.
+as shown in Figure \ref{fig:zapwallet-structure}. \\
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{images/architecture-structure2.png}
     \caption{ZapWallet Architectural Overview}

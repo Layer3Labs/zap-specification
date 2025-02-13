@@ -54,15 +54,15 @@ The ZapWallet master predicate's \texttt{main()} function accepts an optional \t
 \subsubsection{Initialization}
 During initialization, \texttt{WalletOp} contains:
 
-\begin{small}
-\begin{verbatim}
+\begin{lstlisting}
 pub struct WalletOp {
     pub evm_addr: b256,      // padded ETH address of wallet owner
     pub compsig: Bytes,      // Compact signature
     pub command: String,     // Initialization command
 }
-\end{verbatim}
-\end{small}
+\end{lstlisting}
+
+
 
 An initialization transaction $T_i$ must satisfy:
 \[ V_i(T_i, s, o) = true \]
@@ -186,7 +186,8 @@ The system identifies modules by matching both:
 % ---------------------------------------------------------------------------------------------------------------
 
 \subsection{Initialization Flow}
-The initialization of a ZapWallet can be done in one of two ways; using the owners Fuel \text{BASE\_ASSET} to pay for gas or from a third party that spends their own gas. If the owner is
+\label{subsec:initialization:sec:zapmaster_predicate}
+The initialization of a ZapWallet can be done in one of two ways; using the owners Fuel \text{BASE\_ASSET} to pay for gas OR from a third party that spends their own gas. If the owner is
 initializing their own ZapWallet (self-initialization) this involves spending a \text{BASE\_ASSET} UTXO from the master, which requires a signature from the owner within
 the \texttt{WalletOp} parameter of the master \text{main()} function call parameters. An initialization by way of a third party does not spend gas (or any other asset) from the
 owners master.
