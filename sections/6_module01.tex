@@ -235,7 +235,8 @@ The data field for ERC20 transfers consists of:
 \end{itemize}
 
 The field decoded to the ERC20 contract address is translated to the corresponding Fuel Native Asset ID
-using the \texttt{compare\_asset\_ids} function. This allows Fuel native assets to be transferred as EVM ERC20 transfers on the Fuel network.
+using the \texttt{compare\_asset\_ids} function. This allows Fuel native assets to be transferred as EVM ERC20 transfers
+on the Fuel network. See section \ref{subsec:asset_maapping:sec:module03_predicate} for more details.
 
 
 
@@ -278,16 +279,6 @@ For a transaction to be valid, it must satisfy:
 \end{itemize}
 
 
-The builder\_tip needs be a Coin Output with some value (can be zero). It is not enforced that the transaction builder
-is required to "tip" themselves. Therefore, the value of the \text{BASE\_ASSET} output to the receiver is always the amount specified in the RLP
-data. The gas consumed by the transaction comes out of the \text{max\_tx\_cost} budget, which is made up of:
-
-\[
-\text{max\_tx\_cost} = \text{Fuel network fee} + \text{builder\_tip}
-\]
-
-Any difference in \text{BASE\_ASSET} that is not consumed by the sum of the transaction outputs (for \text{BASE\_ASSET}) is sent back to the
-owners ZapWallet master Address as a Change output.
 
 
 \subsection{Asset Flow}
@@ -295,10 +286,20 @@ A transaction containing Module 01 processes three types of assets:
 \begin{itemize}
     \item Module 01 asset (for validation authorization of the signed RLP data)
     \item Nonce asset (to prevent signature replay)
-    \item \text{BASE\_ASSET} (for value transfer and gas) from the master
+    \item \text{BASE\_ASSET} (for value transfer, gas and builder tip) from the master
 \end{itemize}
 
 
+The builder\_tip needs be a Coin Output with some value (can be zero). It is not enforced that the transaction builder
+is required to "tip" themselves. Therefore, the value of the \text{BASE\_ASSET} output to the receiver is always the amount specified in the RLP
+data. The gas consumed by the transaction comes out of the \text{max\_tx\_cost} budget, which is made up of:
+
+\[
+\text{max\_tx\_cost} = \text{network fee} + \text{builder\_tip}
+\]
+
+Any difference in \text{BASE\_ASSET} that is not consumed by the sum of the transaction outputs (for \text{BASE\_ASSET}) is sent back to the
+owners ZapWallet master Address as a Change output. See section \ref{subsec:gas_costing:sec:module02_predicate} for further details.
 
 
 \subsection{Transaction Structure}
@@ -337,10 +338,14 @@ A transaction containing Module 01 processes three types of assets:
 For module01 asset $M_1$ and predicate address $P$:
 \[ \exists \text{ output } o : o.asset = M_1 \land o.amount = 1 \land o.to = P \]
 
-\subsubsection{Nonce Sequencing}
-For nonce value $n$ and transaction nonce $t$:
+\subsubsection{Signature Replay Prevention}
+The nonce mechanism in Module 01 serves primarily as protection against signature replay attacks rather than traditional transaction
+sequencing. For a given transaction signature with nonce value $t$, the system maintains a monotonically decreasing counter $n$:
 \[ n = NONCE\_MAX - t \]
 \[ \exists \text{ output } o : o.asset = N \land o.amount = n - 1 \]
+
+This ensures each signature can only be used once, as the nonce asset's decreasing value prevents reuse of any previously
+signed transaction data.
 
 \subsubsection{Value Transfer}
 For transaction value $v$ and max cost $c$:

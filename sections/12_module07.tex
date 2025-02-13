@@ -2,5 +2,303 @@
 \section{Module 07 - {\ttfamily ""module07\_sponsor"}}
 \label{sec:module07_predicate}
 
-spec writeup WIP.
+\subsection{Overview}
+Module 07 handles gas sponsorship operations from the owners ZapWallet. It validates and processes EIP-712 signed
+gas sponsorship parameters, allowing gas UTXOs to be securely used for asset exchange, free usage, or sponsorship signatures
+to be cancellation.\\
+
+
+The module operates in three modes:
+\begin{itemize}
+\item \textbf{Sponsor}: Trade gas for another asset within configurable tolerance bounds
+\item \textbf{Gaspass}: Allow free gas usage with guaranteed return amounts
+\item \textbf{Cancel}: Move a gas UTXO without requiring exchange
+\end{itemize}
+
+Formally, for a transaction $T$ with gas sponsorship operation $O$, the validation is:\\
+
+$[ v: O \rightarrow {true, false} \text{ where } O = (w, p) ]$ \\
+
+where $v$ is the validation function, $O$ is the sponsorship operation tuple , $w$ is the EIP-712 signature
+witness and $p$ are the sponsorship parameters\\
+
+
+This allows gas UTXOs to be used flexibly and securely from the owners ZapWallet, enabling use cases like
+transaction sponsorship, free trials, and cancellations while enforcing the sponsor's signed intent.\\
+
+\subsection{Sponsorship Parameters}
+The gas sponsorship parameters are defined by the \texttt{GasSponsor} struct:
+\begin{lstlisting}
+    struct GasSponsor {
+    command: String,
+    returnaddress: b256,
+    inputgasutxoid: b256,
+    expectedgasoutputamount: u256,
+    expectedoutputasset: b256,
+    expectedoutputamount: u256,
+    tolerance: u256,
+}
+\end{lstlisting}
+
+Where:
+\begin{itemize}
+\item \texttt{command}: Operation type (\texttt{"sponsor"}, \texttt{"gaspass"}, or \texttt{"cancel"})
+\item \texttt{returnaddress}: Expected gas return address
+\item \texttt{inputgasutxoid}: UTXO ID of the input gas coin
+\item \texttt{expectedgasoutputamount}: Expected gas return amount
+\item \texttt{expectedoutputasset}: Expected asset ID for exchange (\texttt{"sponsor"} only)
+\item \texttt{expectedoutputamount}: Expected asset amount for exchange (\texttt{"sponsor"} only)
+\item \texttt{tolerance}: Acceptable deviation from expected exchange amount (\texttt{"sponsor"} only)
+\end{itemize}
+
+These parameters are hashed according to EIP-712 and signed by the gas owner, providing secure authorization for the
+specified usage of their gas UTXO.\\
+
+
+\subsection{Validation Flow}
+The core validation logic follows these steps:
+
+\begin{enumerate}
+\item Extract EIP-712 signature witness
+\item Collect and categorize transaction inputs and outputs
+\item Validate the specified gas UTXO is present and owned by signer
+\item Process outputs according to \texttt{command}:
+\begin{itemize}
+\item \texttt{"sponsor"}: Verify asset exchange amounts are within tolerance
+\item \texttt{"gaspass"}: Verify gas return amount
+\item \texttt{"cancel"}: Validate gas UTXO movement
+\end{itemize}
+\item Rebuild \texttt{GasSponsor} struct and verify EIP-712 signature
+\end{enumerate}
+
+If all checks pass, the transaction is approved.\\
+
+
+
+\subsection{Asset Flow}
+A transaction containing Module 07 processes the following assets:
+
+\begin{itemize}
+\item \textbf{Gas UTXO}: The input gas coin (\text{BASE\_ASSET}) owned by the owners ZapWallet specified by \texttt{inputgasutxoid}
+\item \textbf{Exchange Asset} (\texttt{"sponsor"} only): The asset traded to the gas owner
+\end{itemize}
+
+For the three different types of transactions \texttt{"sponsor"}, \texttt{"gaspass"} and \texttt{"cancel"} the asset flow is described below.\\
+
+
+% % ----------------------------------------------------------------------------------------------
+% sponsor
+\subsubsection{\texttt{"sponsor"} Asset Flow}
+
+The gas input UTXO must be present and owned by the owner of the ZapWallet. For \texttt{"sponsor"}
+operations, the output exchange asset must match the \texttt{expectedoutputasset} and \\
+\texttt{expectedoutputamount} and no \texttt{tolerance} is specified. Any remaining gas not explicitly output is returned
+to the owner via a Change output.\\
+
+\textbf{Transaction Structure}:
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 07\\ asset: Module 07\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{Gas Sponsor\\ Validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Module 07\\ asset: Module 07\\ AssetId\\ amount: 1} \\
+        & *+[F:purple]\txt{Coin:  User\\ asset: Other Coin AssetId\\ amount: $n$,\\ where $n \geq 1$}
+            \ar[r] & *+[H]\txt{VM ownership validation \\ \& EIP712 Validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Master\\ asset: Other Coin AssetId\\ amount: $\text{expectedoutputamount}$} \\
+        & \phantom{*+[F=]\txt{Placeholder}}
+            & \phantom{*+[F=]\txt{Placeholder}}
+            \ar[r] & *+[F:purple]\txt{type: Change\\ to: User\\ asset: Other Coin AssetId\\ amount: $n - \text{expectedoutputamount}$} \\
+        % ----------------------
+        & *+[F=]\txt{Coin predicate: Master\\ asset: BASE\_ASSET\\ amount: value}
+            \ar[r] & *+[H]\txt{Master Validation \&\\ EIP712 Validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Master\\ asset: BASE\_ASSET\\ amount: value - gas cost} \\
+        & \phantom{*+[F=]\txt{Placeholder}}
+            & \phantom{*+[F=]\txt{Placeholder}}
+            \ar[r] & *+[F=]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: NA } \\
+        % & \phantom{*+[F=]\txt{Placeholder}}
+        %     & \phantom{*+[F=]\txt{Placeholder}}
+        %     & *+[F.:grey:dashed]\txt{type: Change\\ to: master\\ asset: BASE\_ASSET\\ amount: \\ $\text{receiver value} - \text{network fee} - \text{network fee}$}
+    }}
+    }
+    \caption{Module 07 Gas Sponsorship Transaction Flow for \texttt{"sponsor"}}
+    \label{fig:module07-flow}
+\end{figure}
+
+
+
+% % ----------------------------------------------------------------------------------------------
+% gasspass
+\subsubsection{\texttt{"gasspass"} Asset Flow}
+
+The gas input UTXO must be present and owned by the owner of the ZapWallet. For \texttt{"gasspass"}
+operations, no exchange asset is required by the third party using the owners ZapWallet gas UTXO. The
+\texttt{expectedgasoutputamount} gas return amount is specified by the owner. No \texttt{tolerance} is required. Any remaining gas not explicitly output is returned
+to the owner via a Change output.\\
+
+
+
+
+\textbf{Transaction Structure}:
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 07\\ asset: Module 07\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{Gas Sponsor\\ Validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Module 07\\ asset: Module 07\\ AssetId\\ amount: 1} \\
+        % ----------------------
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount:\\ value}
+            \ar[r] & *+[H]\txt{Master Validation \&\\ EIP712 Validation}
+            \ar[r] & *+[F=]\txt{type: Coin\\ to: Master\\ asset: BASE\_ASSET\\ amount: $\text{expectedgasoutputamount}$} \\
+        & \phantom{*+[F=]\txt{Placeholder}}
+            & \phantom{*+[F=]\txt{Placeholder}}
+            \ar[r] & *+[F=]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: NA } \\
+        % & \phantom{*+[F=]\txt{Placeholder}}
+        %     & \phantom{*+[F=]\txt{Placeholder}}
+        %     & *+[F.:grey:dashed]\txt{type: Change\\ to: master\\ asset: BASE\_ASSET\\ amount: \\ $\text{receiver value} - \text{network fee} - \text{network fee}$}
+    }}
+    }
+    \caption{Module 07 Gas Sponsorship Transaction Flow for \texttt{"gasspass"}}
+    \label{fig:module07-flow}
+\end{figure}
+
+
+% % ----------------------------------------------------------------------------------------------
+% cancel
+\subsubsection{\texttt{"cancel"} Asset Flow}
+
+For \texttt{"cancel"} operations, the UTXO of the owners gas is simply spent and sent back to the owner Zapwallet. This renders an already
+signed \texttt{"sponsor"} or \texttt{"gasspass"} signature invalid. \\
+
+
+\textbf{Transaction Structure}:
+\begin{figure}[H]
+    \scalebox{0.85}{
+    \centerline{
+    \xymatrix@R=2.5pc@C=1.5pc{
+        & \txt{Input type\\ Asset type\\ Amount}
+        & \txt{Verification\\ Signature \\ type}
+        & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
+        & *+[F]\txt{Coin predicate:\\ Module 07\\ asset: Module 07\\ AssetId\\ amount: 1}
+            \ar[r] & *+[H]\txt{Gas Sponsor\\ Validation}
+            \ar[r] & *+[F]\txt{type: Coin\\ to: Module 07\\ asset: Module 07\\ AssetId\\ amount: 1} \\
+        % ----------------------
+        & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount:\\ value}
+            \ar[r] & *+[H]\txt{Master Validation \&\\ EIP712 Validation}
+            \ar[r] & *+[F=]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: NA} \\
+    }}
+    }
+    \caption{Module 07 Gas Sponsorship Transaction Flow for \texttt{"cancel"}}
+    \label{fig:module07-flow}
+\end{figure}
+
+
+
+
+
+% % ----------------------------------------------------------------------------------------------
+%
+
+\subsection{Security Properties}
+\subsubsection{Signature Integrity}
+The EIP-712 signature is verified against the rebuilt \texttt{GasSponsor} struct, ensuring that all
+validated parameters match the signer's intent exactly. The signing domain and struct type hash are
+fixed at deployment, preventing any modification.\\
+
+$[ s = \text{Sign}(H(GasSponsor), d_{owner}) ]$
+$[ \text{Verify}(s, H(GasSponsor), d_{contract}) = v ]$\\
+
+Where:
+\begin{itemize}
+\item $s$: The EIP-712 signature
+\item $H$: The EIP-712 struct hash function
+\item $d_{owner}$: The gas owner's signing domain
+\item $d_{contract}$: The contract's verification domain
+\item $v$: The boolean validation result
+\end{itemize}
+
+
+\subsubsection{Asset Conservation}
+
+
+For command $c$, gas amount $g$, and exchange amount $e$:
+\texttt{command = "sponsor"}:\\
+
+$[ \sum \text{outputs} = (g - r) + (e \pm t) + r ]$
+
+\texttt{command = "gaspass"}:\\
+
+$[ \sum \text{outputs} = (g - r) + r ]$
+
+\texttt{command = "cancel"}:\\
+
+$[ \sum \text{outputs} = g ]$
+
+This ensures that assets are never lost or created, only moved according to the
+validated sponsorship parameters.
+
+
+
+
+
+\subsubsection{Asset Conservation}
+The total output amounts are always equal to the input amounts, ensuring no assets are lost or created.
+For a gas sponsorship transaction with gas amount $g$, expected return $r$, exchange amount $e$, and tolerance $t$:
+
+\textbf{Sponsor Operation:}
+$[ \sum \text{outputs} = \underbrace{(g - r)}{\text{Unused gas}} + \underbrace{(e \pm t)}{\text{Exchange asset}} + \underbrace{r}_{\text{Returned gas}} = g + (e \pm t) ]$
+
+\textbf{Gaspass Operation:}
+$[ \sum \text{outputs} = \underbrace{(g - r)}{\text{Unused gas}} + \underbrace{r}{\text{Returned gas}} = g ]$
+
+\textbf{Cancel Operation:}
+$[ \sum \text{outputs} = \underbrace{g}_{\text{Moved gas}} ]$
+
+In each case, the output amounts are conserved:
+\begin{itemize}
+\item \textbf{Sponsor}: The sum of unused gas, exchanged asset, and returned gas equals the input gas plus the exchange asset amount (within tolerance).
+\item \textbf{Gaspass}: The sum of unused and returned gas equals the input gas amount.
+\item \textbf{Cancel}: The output gas amount is equal to the input gas amount.
+\end{itemize}
+
+This asset conservation ensures that the gas sponsorship operations only move assets according to the validated parameters, without any loss or unauthorized creation of funds.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsubsection{Replay Prevention}
+The \texttt{inputgasutxoid} parameter uniquely identifies the exact gas UTXO authorized for the operation.
+This ID is signed along with the other parameters, preventing any modification or replay of the sponsorship.
+
+
+\subsection{Error Handling}
+The module includes error handling that propagates errors to at maximum the \text{main()} scope. However as predicates
+must return boolean results, all errors result in a \text{false} returned from the main execution.
+
+
 

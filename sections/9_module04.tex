@@ -1,6 +1,115 @@
 \newpage
-\section{Module 04 - {\ttfamily ""module04\_txidwit"}}
+\section{Module 04 - {\ttfamily "module04\_txidwit"}}
 \label{sec:module04_predicate}
 
-spec writeup WIP.
+\subsection{Overview}
+Module 04 provides a simplified transaction validation mechanism based purely on EIP-191 signature verification of the transaction ID.
+Unlike other modules, it allows arbitrary transaction structures but explicitly forbids the use of the owners ZapWallet nonce assets, making it suitable
+for flexible operations that don't require a nonce for replay protection as this is already inherited by the UTXO model.\\
 
+\subsection{Signature Verification}
+The module validates transactions through EIP-191 personal sign format:\\
+
+\subsubsection{Message Construction}
+For transaction ID $txid$, the signed message is constructed as:
+\[ message = \text{EthereumSignedMessage prefix} \parallel txid \]
+
+where the prefix is the hex-encoded string \texttt{"x19Ethereum Signed Message:"} + newline character and the number 32 for the amount
+of bytes in the messsage (the transaction id), represented as:
+\begin{verbatim}
+0x19457468657265756d205369676e6564204d6573736167653a0a3332
+\end{verbatim}
+
+The module verifies:
+\[ signer = ecrecover(signature, keccak256(message)) = owner \]
+
+
+\begin{figure}[H]
+    \scalebox{0.75}{
+    \centering
+    \begin{tikzpicture}[
+        node distance=2cm,
+        box/.style={rectangle, draw=black, thick, minimum width=3cm, minimum height=1cm, align=center},
+        arrow/.style={-stealth, thick}
+    ]
+        % Transaction elements
+        \node[box] (txid) {Transaction ID};
+        \node[box] (prefix) [below=1cm of txid] {\texttt{EIP-191 Prefix}};
+        \node[box] (hash) [below=2cm of prefix] {Message Hash};
+        \node[box] (sig) [left=2cm of hash] {Signature};
+        \node[box] (signer) [below=2cm of hash] {Recovered Signer};
+
+        % Arrows
+        \draw[arrow] (txid) -- (prefix);
+        \draw[arrow] (prefix) -- node[right] {keccak256} (hash);
+        \draw[arrow] (sig) -- (signer);
+        \draw[arrow] (hash) -- (signer);
+
+        % Validation result
+        \node[box] (result) [below=1cm of signer] {Compare with Owner};
+        \draw[arrow] (signer) -- (result);
+
+    \end{tikzpicture}
+    }
+    \caption{Module 04 Signature Verification Flow}
+    \label{fig:module04-flow}
+\end{figure}
+
+
+
+
+
+
+
+\subsection{Input Constraints}
+While Module 04 is flexible in transaction structure, it enforces one critical constraint:\\
+
+\[ \forall i \in inputs: i.assetId \neq NONCE\_ASSET\_ID \]
+
+This ensures that:
+\begin{itemize}
+    \item Nonce-based replay protection remains under control of specific modules
+    \item Blind Signature-based operations cannot interfere with nonce based Modules
+\end{itemize}
+
+\subsection{Usage Patterns}
+Module 04 is designed for operations that need flexible input/output structures which can rely on transaction ID uniqueness
+for replay protection. This can benefit transaction builders from simpler validation logic provided ZapWallet users are willing
+to sign "blind" hashes.
+
+
+
+
+\subsection{Security Properties}
+Module 04 maintains two key security properties that ensure correct operation and prevent misuse:
+
+\subsubsection{Signature Verification}
+The module ensures that each transaction is properly authorized by the owner. For any transaction $T$ with witness signature $\sigma$:
+\[ \exists \text{ witness } w : w = \sigma \land ecrecover(\sigma, hash(T)) = owner \]
+
+This verifies that:
+\begin{itemize}
+   \item The transaction contains a valid witness signature
+   \item The signature correctly recovers to the ZapWallet owner's address
+   \item The signature was created over the exact transaction being processed
+\end{itemize}
+
+\subsubsection{Nonce Protection}
+To maintain the integrity of the Nonce asset for use in other Modules, Module 04 explicitly forbids the use
+of nonce assets. For all inputs $I$ in transaction $T$:
+\[ \forall i \in I : i.asset \neq N \]
+where $N$ is the nonce asset ID.\\
+
+This constraint ensures that Nonce-based replay protection remains under the control of specific modules.
+
+
+% \subsection{Security Properties}
+
+% \subsubsection{Signature Verification}
+% For transaction $T$ with witness signature $\sigma$:
+% \[ \exists \text{ witness } w : w = \sigma \land ecrecover(\sigma, hash(T)) = owner \]
+
+% \subsubsection{Nonce Protection}
+% For all inputs $I$ in transaction $T$:
+% \[ \forall i \in I : i.asset \neq N \]
+% where $N$ is the nonce asset ID.

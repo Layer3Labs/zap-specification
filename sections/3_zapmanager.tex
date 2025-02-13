@@ -40,14 +40,21 @@ These phases represent:
 Phase transitions are controlled by the contract owner and must maintain the invariant:
 \[ \neg(can\_initialize \land can\_upgrade) \]
 
+
+% --------------------------------------------------------------------------------------------------
 \subsection{Core Functions}
 
+% --------------------------------------------------------------------------------------------------
 \subsubsection{Wallet Initialization}
-\begin{small}
-\begin{verbatim}
+
+The initialization function is called my either the owner of the ZapWallet or a third party. See section \ref{subsec:initialization:sec:zapmaster_predicate} for
+further details.\\
+
+\begin{lstlisting}
 initialize_wallet(master_addr, owner_evm_addr, initdata) -> EvmAddress
-\end{verbatim}
-\end{small}
+\end{lstlisting}
+
+
 
 \textbf{Preconditions:}
 \begin{itemize}
@@ -74,10 +81,12 @@ initialize_wallet(master_addr, owner_evm_addr, initdata) -> EvmAddress
 
 
 
-
-
-
+% --------------------------------------------------------------------------------------------------
 \subsubsection{Wallet Upgrade}
+
+A ZapWallet version upgrade calls the upgrade function on the ZapManager contract with the sufficient transaction inputs and outputs. See section \ref{sec:module00_predicate} for
+further details.\\
+
 \begin{lstlisting}
 upgrade(owner_evm_addr, sponsored)
 \end{lstlisting}
@@ -117,11 +126,6 @@ Asset invariants must maintain:
 
 % --------------------------------------------------------------------------------------------------
 \subsection{Security Invariants}
-% \begin{enumerate}
-%     \item $\forall k. v1\_map[k] \neq \emptyset \implies balance(v1\_map[k]) > 0$
-%     \item $\neg(can\_initialize \land can\_upgrade)$
-%     \item $owner \neq \emptyset$
-% \end{enumerate}
 
 The security properties of the ZapManager contract are defined by the following formal invariants, which must hold true at all times during contract execution:
 
