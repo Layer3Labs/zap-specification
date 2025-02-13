@@ -26,14 +26,17 @@ checks the transaction structure, verifies the signature, and ensures proper ass
 Module 05 implements a flexible native asset transfer system with properties that ensure secure asset movement and optional gas sponsorship.
 
 \subsubsection{Transfer Properties}
-For a transfer operation with value $v$ and asset $a$:
-\[ \forall i \in inputs(a): \sum i.amount \geq v \]
-\[ \exists \text{ output } o : o.asset = a \land o.amount = v \land o.to = recipient \]
+For a transfer operation with value $v$, asset $a$, and owner $o$:
+\[ \sum \{ i.amount : i \in inputs(a) | i.asset = a \land i.owner = o \} \]
+\[ \exists \text{ unique output } o : o.asset = a \land o.amount = v \land o.to = recipient \]
 
 \subsubsection{Sponsorship Properties}
-For sponsored transactions with sponsor $s$:
+For sponsored transactions with sponsor $s$ and asset $a$:
 \[ s \neq owner\_wallet \]
-\[ \forall i \in inputs(BASE\_ASSET): i.owner \in \{s, owner\} \]
+\[ \begin{cases}
+    \forall i \in inputs(BASE\_ASSET) : i.owner \in \{s, owner\} & a = BASE\_ASSET \\
+    \forall i \in inputs(BASE\_ASSET) : i.owner = s & otherwise
+\end{cases} \]
 
 
 % % ---------------------------
@@ -43,23 +46,23 @@ Module 05 uses EIP-712 typed data signing for transfer authorization. The \text{
 
 \begin{lstlisting}
 NativeTransfer(
-   bytes32 assetId,      // The Fuel native asset ID being transferred
-   uint256 amountIn,     // Amount of asset to transfer
-   bytes32 from,         // Sender's ZapWallet master predicate address
-   bytes32 to,           // Recipient's ZapWallet master predicate address
-   uint256 maxTxCost,    // Maximum gas cost allowed for the transaction
-   bytes32 utxoID        // Transaction input ID of Module 05's asset
+   bytes32 Asset_Id,      // The Fuel native asset ID being transferred
+   uint256 Amount,        // Amount of asset to transfer
+   bytes32 From,          // Sender's ZapWallet master predicate address
+   bytes32 To,            // Recipient's ZapWallet master predicate address
+   uint256 Max_Tx_Cost,   // Maximum gas cost allowed for the transaction
+   bytes32 Utxo_ID        // Transaction input ID of Module 05's asset
 )
 \end{lstlisting}
 
 Each field serves a specific purpose in the transfer:
 \begin{itemize}
-   \item \texttt{assetId}: Identifies which Fuel native asset is being transferred, either \text{BASE\_ASSET} or another native asset
-   \item \texttt{amountIn}: Specifies the exact amount of the asset to transfer to the recipient
-   \item \texttt{from}: The sender's ZapWallet master predicate address, which must match the transaction inputs
-   \item \texttt{to}: The recipient's ZapWallet master predicate address where the assets will be sent
-   \item \texttt{maxTxCost}: Sets a limit on transaction gas costs, protecting against excessive fees
-   \item \texttt{utxoID}: The UTXO ID of Module 05's asset being consumed and returned in the transaction, preventing signature replay attacks
+   \item \texttt{Asset\_Id}: Identifies which Fuel native asset is being transferred, either \text{BASE\_ASSET} or another native asset
+   \item \texttt{Amount}: Specifies the exact amount of the asset to transfer to the recipient
+   \item \texttt{From}: The sender's ZapWallet master predicate address, which must match the transaction inputs
+   \item \texttt{To}: The recipient's ZapWallet master predicate address where the assets will be sent
+   \item \texttt{Max\_Tx\_Cost}: Sets a limit on transaction gas costs, protecting against excessive fees
+   \item \texttt{Utxo\_ID}: The UTXO ID of Module 05's asset being consumed and returned in the transaction, preventing signature replay attacks
 \end{itemize}
 
 This structured data ensures the signed message unambiguously captures all aspects of the intended transfer, providing both
@@ -79,8 +82,8 @@ This means there must exist exactly one output that returns the Module 05 asset 
 maintaining the module's ability to validate future transactions.
 
 \subsubsection{Amount Validation}
-Verification that input amounts cover the requested transfer:
-\[ \sum_{i \in I} i.amount \geq v \text{ where } i.asset = a \]
+Verification that input amounts cover the requested transfer of amount $v$ of asset $a$ from owner $o$:
+\[ \sum_{i \in I} i.amount \geq v \text{ where } i.asset = a \land i.owner = o \]
 
 
 \subsubsection{Owner Authorization}
@@ -97,7 +100,7 @@ Every transfer must be authorized by the wallet owner through their signature:
 The four types of transactions and their asset flow is shown below. \\
 
 
-\subsubsection{unsponsored \text{BASE\_ASSET} transfer}
+\subsubsection{Unsponsored \text{BASE\_ASSET} transfer}
 For non-sponsored \text{BASE\_ASSET} transfers the inputs come exclusively from the owners ZapWallet master.\\
 
 
@@ -107,17 +110,20 @@ For non-sponsored \text{BASE\_ASSET} transfers the inputs come exclusively from 
     \centerline{
     \xymatrix@R=2.5pc@C=1.5pc{
         & \txt{Input type\\ Asset type\\ Amount}
-        & \txt{Verification\\ Signature \\ type}
+        & \txt{Verification\\ Signature \\ Type}
         & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
         & *+[F]\txt{Coin predicate:\\ Module 05\\ asset: Module 05\\ AssetId\\ amount: 1}
             \ar[r] & *+[H]\txt{EIP-712\\ Native Transfer}
             \ar[r] & *+[F]\txt{type: Coin\\ to: Module 05\\ asset: Module 05\\ AssetId\\ amount: 1} \\
         & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount: x}
+            \ar[r] & *+[H]\txt{Transfer\\ Validation}
+            \ar[r] & *+[F:blue]\txt{type: Coin\\ to: Receiver\\ asset: BASE\_ASSET\\ amount: $\text{value}$ } \\
+        & \phantom{*+[F]\txt{Placeholder}}
             \ar[r] & *+[H]\txt{Asset \&\\ Amount\\ Validation}
             \ar[r] & *+[F=]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: $\text{remaining}$ } \\
         & \phantom{*+[F]\txt{Placeholder}}
-            \ar[r] & *+[H]\txt{Transfer\\ Validation}
-            \ar[r] & *+[F:blue]\txt{type: Coin\\ to: Receiver\\ asset: BASE\_ASSET\\ amount: $\text{inputput amount} - \text{receiver value}$}
+            & \phantom{*+[H]\txt{Placeholder}}
+            & *+[F]\txt{type: Coin\\ to: Master\\ asset: BASE\_ASSET\\ amount: $\text{GuaranteedChange}$ } \\
     }}
     }
     \caption{Unsponsored BASE\_ASSET Transfer Flow}
@@ -138,7 +144,7 @@ For native asset transfers without sponsorship, both gas and the transferred ass
     \centerline{
     \xymatrix@R=2.5pc@C=1.5pc{
         & \txt{Input type\\ Asset type\\ Amount}
-        & \txt{Verification\\ Signature \\ type}
+        & \txt{Verification\\ Signature \\ Type}
         & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
         & *+[F]\txt{Coin predicate:\\ Module 05\\ asset: Module 05\\ AssetId\\ amount: 1}
             \ar[r] & *+[H]\txt{EIP-712\\ Native Transfer}
@@ -146,6 +152,9 @@ For native asset transfers without sponsorship, both gas and the transferred ass
         & *+[F=]\txt{Coin predicate:\\ Master\\ asset: BASE\_ASSET\\ amount: x}
             \ar[r] & *+[H]\txt{Gas\\ Validation}
             \ar[r] & *+[F=]\txt{type: Change\\ to: Master\\ asset: BASE\_ASSET\\ amount: remaining} \\
+        & \phantom{*+[F]\txt{Placeholder}}
+            & \phantom{*+[H]\txt{Placeholder}}
+            & *+[F=]\txt{type: Coin\\ to: Master\\ asset: BASE\_ASSET\\ amount: GuaranteedChange} \\
         & *+[F=]\txt{Coin predicate:\\ Master\\ asset: Native Asset\\ amount: y}
             \ar[r] & *+[H]\txt{Asset \& Amount\\ Validation}
             \ar[r] & *+[F:blue]\txt{type: Coin\\ to: Receiver\\ asset: Native Asset\\ amount: value} \\
@@ -171,7 +180,7 @@ In sponsored \text{BASE\_ASSET} transfers, a third party covers gas costs while 
     \centerline{
     \xymatrix@R=2.5pc@C=1.5pc{
         & \txt{Input type\\ Asset type\\ Amount}
-        & \txt{Verification\\ Signature \\ type}
+        & \txt{Verification\\ Signature \\ Type}
         & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
         & *+[F]\txt{Coin predicate:\\ Module 05\\ asset: Module 05\\ AssetId\\ amount: 1}
             \ar[r] & *+[H]\txt{EIP-712\\ Native Transfer}
@@ -204,7 +213,7 @@ Sponsored native asset transfers combine third-party gas coverage with native a 
     \centerline{
     \xymatrix@R=2.5pc@C=1.5pc{
         & \txt{Input type\\ Asset type\\ Amount}
-        & \txt{Verification\\ Signature \\ type}
+        & \txt{Verification\\ Signature \\ Type}
         & \txt{Output type\\ Receiver\\ Asset type\\ Amount} \\
         & *+[F]\txt{Coin predicate:\\ Module 05\\ asset: Module 05\\ AssetId\\ amount: 1}
             \ar[r] & *+[H]\txt{EIP-712\\ Native Transfer}
