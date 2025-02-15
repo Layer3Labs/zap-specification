@@ -15,9 +15,17 @@ The module operates in three modes:
 \item \textbf{Cancel}: Move a gas UTXO without requiring exchange
 \end{itemize}
 
-Formally, for a transaction $T$ with gas sponsorship operation $O$, the validation is:\\
+% Formally, for a transaction $T$ with gas sponsorship operation $O$, the validation is:\\
 
-$[ v: O \rightarrow {true, false} \text{ where } O = (w, p) ]$ \\
+% $[ v: O \rightarrow {true, false} \text{ where } O = (w, p) ]$ \\
+
+Formally, for a transaction $T$ with gas sponsorship operation $O$, the validation is:
+
+\begin{equation*}
+v: O \rightarrow \{\text{true}, \text{false}\} \quad \text{where } O = (w, p)
+\end{equation*}
+
+
 
 where $v$ is the validation function, $O$ is the sponsorship operation tuple , $w$ is the EIP-712 signature
 witness and $p$ are the sponsorship parameters\\
@@ -206,60 +214,57 @@ signed \texttt{"sponsor"} or \texttt{"gasspass"} signature invalid. \\
 % % ----------------------------------------------------------------------------------------------
 %
 
+
+
 \subsection{Security Properties}
 \subsubsection{Signature Integrity}
-The EIP-712 signature is verified against the rebuilt \texttt{GasSponsor} struct, ensuring that all
-validated parameters match the signer's intent exactly. The signing domain and struct type hash are
-fixed at deployment, preventing any modification.\\
+The EIP-712 signature provides cryptographic verification of the gas sponsorship parameters through the
+\texttt{GasSponsor} struct. The signing domain and struct type hash are fixed at deployment time, ensuring
+immutability of the signature verification scheme.
 
-$[ s = \text{Sign}(H(GasSponsor), d_{owner}) ]$
-$[ \text{Verify}(s, H(GasSponsor), d_{contract}) = v ]$\\
+The signature process follows:
+\begin{equation*}
+\begin{aligned}
+\text{Signing}: & \quad s = \text{Sign}(H(\text{GasSponsor}), d_{\text{owner}}) \\
+\text{Verification}: & \quad \text{Verify}(s, H(\text{GasSponsor}), d_{\text{contract}}) \rightarrow v
+\end{aligned}
+\end{equation*}
 
-Where:
+The components are defined as:
 \begin{itemize}
-\item $s$: The EIP-712 signature
-\item $H$: The EIP-712 struct hash function
-\item $d_{owner}$: The gas owner's signing domain
-\item $d_{contract}$: The contract's verification domain
-\item $v$: The boolean validation result
+\item $s$: Generated EIP-712 signature bytes
+\item $H$: EIP-712 typed data hashing function
+\item $d_{\text{owner}}$: Domain separator of the gas owner's signing context
+\item $d_{\text{contract}}$: Domain separator of the verifying contract context
+\item $v$: Boolean validation result of signature verification
 \end{itemize}
 
+This signature scheme ensures authenticity of owner intent, parameter integrity, cross-chain replay prevention, and verification
+immutability through cryptographic signing, structured data hashing, domain separation, and fixed type hashes respectively.\\
 
-\subsubsection{Asset Conservation}
 
-
-For command $c$, gas amount $g$, and exchange amount $e$:
-\texttt{command = "sponsor"}:\\
-
-$[ \sum \text{outputs} = (g - r) + (e \pm t) + r ]$
-
-\texttt{command = "gaspass"}:\\
-
-$[ \sum \text{outputs} = (g - r) + r ]$
-
-\texttt{command = "cancel"}:\\
-
-$[ \sum \text{outputs} = g ]$
-
-This ensures that assets are never lost or created, only moved according to the
-validated sponsorship parameters.
 
 
 
 
 
 \subsubsection{Asset Conservation}
+
 The total output amounts are always equal to the input amounts, ensuring no assets are lost or created.
 For a gas sponsorship transaction with gas amount $g$, expected return $r$, exchange amount $e$, and tolerance $t$:
 
-\textbf{Sponsor Operation:}
-$[ \sum \text{outputs} = \underbrace{(g - r)}{\text{Unused gas}} + \underbrace{(e \pm t)}{\text{Exchange asset}} + \underbrace{r}_{\text{Returned gas}} = g + (e \pm t) ]$
-
-\textbf{Gaspass Operation:}
-$[ \sum \text{outputs} = \underbrace{(g - r)}{\text{Unused gas}} + \underbrace{r}{\text{Returned gas}} = g ]$
-
-\textbf{Cancel Operation:}
-$[ \sum \text{outputs} = \underbrace{g}_{\text{Moved gas}} ]$
+\begin{equation*}
+\begin{aligned}
+\textbf{Sponsor Operation:} \\
+\sum \text{outputs} &= \underbrace{(g - r)}_{\text{Unused gas}} + \underbrace{(e \pm t)}_{\text{Exchange asset}} + \underbrace{r}_{\text{Returned gas}} = g + (e \pm t) \\
+\\
+\textbf{Gaspass Operation:} \\
+\sum \text{outputs} &= \underbrace{(g - r)}_{\text{Unused gas}} + \underbrace{r}_{\text{Returned gas}} = g \\
+\\
+\textbf{Cancel Operation:} \\
+\sum \text{outputs} &= \underbrace{g}_{\text{Moved gas}}
+\end{aligned}
+\end{equation*}
 
 In each case, the output amounts are conserved:
 \begin{itemize}
@@ -268,22 +273,7 @@ In each case, the output amounts are conserved:
 \item \textbf{Cancel}: The output gas amount is equal to the input gas amount.
 \end{itemize}
 
-This asset conservation ensures that the gas sponsorship operations only move assets according to the validated parameters, without any loss or unauthorized creation of funds.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+This asset conservation ensures that the gas sponsorship operations only move assets according to the validated parameters, without any loss or unauthorized creation of funds.\\
 
 
 
@@ -292,8 +282,16 @@ This asset conservation ensures that the gas sponsorship operations only move as
 
 
 \subsubsection{Replay Prevention}
-The \texttt{inputgasutxoid} parameter uniquely identifies the exact gas UTXO authorized for the operation.
-This ID is signed along with the other parameters, preventing any modification or replay of the sponsorship.
+The \texttt{inputgasutxoid} parameter serves as a unique identifier for each gas sponsorship operation:
+
+\begin{itemize}
+\item \textbf{Uniqueness}: Each UTXO ID can only be used once
+\item \textbf{Binding}: The ID is cryptographically bound to the signature
+\item \textbf{Invalidation}: Once spent, the UTXO ID cannot be reused
+\end{itemize}
+
+This mechanism prevents transaction replay attacks, double-spending of gas UTXOs and reuse of sponsorship signatures. \\
+
 
 
 \subsection{Error Handling}
